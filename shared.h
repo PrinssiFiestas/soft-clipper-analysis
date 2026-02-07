@@ -5,7 +5,7 @@
 #include <string.h>
 #include <assert.h>
 
-#ifndef BASE
+#ifndef BASE // defined in Makefile, this is here just for clangd.
 #define BASE 5
 #endif
 
@@ -17,14 +17,10 @@ static inline void set_f(int f[BASE], int n)
 
 static inline void put_f(const int f[BASE])
 {
-    char str[BASE + sizeof""];
-
-    for (size_t i = 0; i < BASE; ++i) {
-        str[i] = f[i] + '0';
-    }
-    str[BASE] = '\0';
-
-    puts(str);
+    printf("[%i", f[0]);
+    for (size_t i = 1; i < BASE; ++i)
+        printf(" %i", f[i]);
+    puts("]");
 }
 
 static inline bool valid_f(const int f[BASE])
