@@ -6,8 +6,17 @@
 #include <assert.h>
 
 #ifndef BASE // defined in Makefile, this is here just for clangd.
+// Precision of clipping function and unipolar length.
 #define BASE 5
 #endif
+
+// Bipolar buffer size.
+#define T (2*BASE + 1)
+
+// Amplitude of sines or fixed width precision. Since using integer math, bigger
+// amplitude would give better precision, however, our clippers will be horribly
+// imprecise anyway, so no need to go crazy. Smaller value prevents overflow.
+#define A (1<<12)
 
 static inline void set_f(int f[BASE], int n)
 {
@@ -40,30 +49,23 @@ static inline bool valid_f(const int f[BASE])
     return true;
 }
 
-static inline void inc_flush(int f[], size_t i)
-{
-    int inc = f[i] + 1;
-    for (; i < BASE; ++i)
-        f[i] = inc;
-}
-
 static inline bool next_f(size_t* i, int f[BASE])
 {
     if (f[0] >= BASE)
         return false;
 
-    if (f[*i] < BASE && *i < BASE) { // `i < BASE` is unnecessary?
-        inc_flush(f, ++*i);
-        return true;
-    }
-    // else increment based on derivative
     int d1, d2;
-    do {
+    if (f[*i] < BASE) { // flush right
+        ++*i;
+    }
+    else do { // flush left
         --*i;
         d1 = f[*i-0] - f[*i-1];
         d2 = f[*i-1] - f[*i-2];
     } while (d1 == d2);
 
-    inc_flush(f, *i);
+    int inc = f[*i] + 1;
+    for (size_t j = *i; j < BASE; ++j) // flush
+        f[j] = inc;
     return true;
 }
