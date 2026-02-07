@@ -1,12 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <assert.h>
-
-#ifndef BASE
-#define BASE 5
-#endif
+#include "shared.h"
 
 void put_fp(const int f[])
 {
@@ -28,13 +20,6 @@ void put_fp(const int f[])
     assert(diff_decreasing);
 }
 
-void inc_flush(int f[], size_t i)
-{
-    int inc = f[i] + 1;
-    for (; i < BASE; ++i)
-        f[i] = inc;
-}
-
 void count(int f[])
 {
     f[-2] = f[-1] = 0;
@@ -42,22 +27,8 @@ void count(int f[])
         f[i] = 1;
     put_fp(f);
 
-    for (size_t i = 0; f[0] < BASE; put_fp(f))
-    {
-        if (f[i] < BASE && i < BASE) { // `i < BASE` is unnecessary?
-            inc_flush(f, ++i);
-            continue;
-        }
-        // else increment based on derivative
-        int d1, d2;
-        do {
-            --i;
-            d1 = f[i-0] - f[i-1];
-            d2 = f[i-1] - f[i-2];
-        } while (d1 == d2);
-
-        inc_flush(f, i);
-    }
+    for (size_t i = 0; next_f(&i, f); put_fp(f))
+        ;
 }
 
 int main(void)
