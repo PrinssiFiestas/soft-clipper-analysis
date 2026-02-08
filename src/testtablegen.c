@@ -22,6 +22,11 @@ bool f_count_next(int f[BASE])
 
 int main(void)
 {
+    if (BASE > 14) {
+        fprintf(stderr, "BASE %i too high, the test will take forever.\n", BASE);
+        exit(EXIT_FAILURE);
+    }
+
     int f_mem[2 * (2/*leading zeros*/ + BASE)] = {0};
     int* f = f_mem + 2;
     int* f_correct = f_mem + 2 + BASE + 2;
@@ -45,7 +50,7 @@ int main(void)
     signal(SIGINT,  set_signum);
     signal(SIGQUIT, set_signum);
 
-    while (true)
+    while (g_signum == 0)
     {
         bool f_not_done = f_next(&f_state, f);
         do {
@@ -78,7 +83,7 @@ int main(void)
             fflush(stdout);
         }
     }
-    end:;
+    end:
 
     printf("\r Testing [PASSED]\n");
     printf("Compared %zu of %zu functions. All matched!\n", counter, progress_counter);

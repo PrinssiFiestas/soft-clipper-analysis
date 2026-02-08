@@ -2,10 +2,11 @@ BASE ?= 16
 
 CC = gcc
 CFLAGS = -Wall -Wextra -ggdb3 -gdwarf -DBASE=$(BASE) -march=native
+# Remember to not add -O3 by default, we want to plot in Seergdb.
 
 help:
 	@echo 'Targets'
-	@echo '  sequence [BASE=<base]       Print full sequence of functions of a given BASE.'
+	@echo '  sequence [BASE=<base>]      Print full sequence of functions of a given BASE.'
 	@echo '  test_sequence BASE=<base>   Count and test all possible sequences of a given base.'
 	@echo '  sines [BASE=<base>]         Generate a table of sines of multiples of frequencies.'
 	@echo '  plot [BASE=<base>] N=<idx>  Generate CSV of a function of given BASE and index N.'
@@ -20,8 +21,8 @@ test_sequence:
 
 sines:
 	@mkdir -p build
-	@$(CC) -o build/synthesis $(CFLAGS) -lm -O3 src/synthesis.c && ./build/synthesis
+	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis
 
 plot:
 	@mkdir -p build
-	@$(CC) -o build/plot $(CFLAGS) -DN=$N -O3 src/plot.c && ./build/plot
+	@$(CC) -o build/plot $(CFLAGS) -DN=$N src/plot.c && ./build/plot
