@@ -1,3 +1,6 @@
+#ifndef SHARED_H_INCLUDED
+#define SHARED_H_INCLUDED 1
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -55,10 +58,10 @@ static inline bool next_f(size_t* i, int f[BASE])
         return false;
 
     int d1, d2;
-    if (f[*i] < BASE) { // flush right
+    if (f[*i] < BASE) { // flush from next
         ++*i;
     }
-    else do { // flush left
+    else do { // flush from left
         --*i;
         d1 = f[*i-0] - f[*i-1];
         d2 = f[*i-1] - f[*i-2];
@@ -69,3 +72,5 @@ static inline bool next_f(size_t* i, int f[BASE])
         f[j] = inc;
     return true;
 }
+
+#endif // SHARED_H_INCLUDED
