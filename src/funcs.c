@@ -5,9 +5,9 @@ void count(int f[])
     f[-2] = f[-1] = 0;
     for (size_t i = 0; i < BASE; ++i)
         f[i] = 1;
-    put_f(f);
+    f_print(f);
 
-    for (size_t i = 0; next_f(&i, f); put_f(f))
+    for (size_t i = 0; f_next(&i, f); f_print(f))
         ;
 }
 

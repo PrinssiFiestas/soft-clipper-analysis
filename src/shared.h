@@ -9,25 +9,27 @@
 #include <assert.h>
 
 #ifndef BASE // defined in Makefile, this is here just for clangd.
-// Precision of clipping function and unipolar length.
-#define BASE 5
+// Precision of clipping function and unipolar function length.
+#define BASE 48
 #endif
 
 // Bipolar buffer size.
 #define T (2*BASE + 1)
 
-// Amplitude of sines or fixed width precision. Since using integer math, bigger
-// amplitude would give better precision, however, our clippers will be horribly
-// imprecise anyway, so no need to go crazy. Smaller value prevents overflow.
-#define A (1<<12)
+// Fixed point bit width. No need to be crazy precise, our clipper is horrible
+// anyway, so let it be smaller to prevent overflow.
+#define FIXED_WIDTH 12
 
-static inline void set_f(int f[BASE], int n)
+// Amplitude of sines or fixed width precision.
+#define A (1<<FIXED_WIDTH)
+
+static inline void f_set(int f[BASE], int n)
 {
     for (size_t i = 0; i < BASE; ++i)
         f[i] = n;
 }
 
-static inline void put_f(const int f[BASE])
+static inline void f_print(const int f[BASE])
 {
     printf("[%i", f[0]);
     for (size_t i = 1; i < BASE; ++i)
@@ -35,7 +37,8 @@ static inline void put_f(const int f[BASE])
     puts("]");
 }
 
-static inline bool valid_f(const int f[BASE])
+// Checks if function is increasing and it's derivative is decreasing.
+static inline bool f_valid(const int f[BASE])
 {
     bool value_increasing = true;
     bool diff_decreasing  = true;
@@ -52,7 +55,8 @@ static inline bool valid_f(const int f[BASE])
     return true;
 }
 
-static inline bool next_f(size_t* i, int f[BASE])
+// Next function from function sequence.
+static inline bool f_next(size_t* i, int f[BASE])
 {
     if (f[0] >= BASE)
         return false;

@@ -25,8 +25,8 @@ int main(void)
     int f_mem[2 * (2/*leading zeros*/ + BASE)] = {0};
     int* f = f_mem + 2;
     int* f_correct = f_mem + 2 + BASE + 2;
-    set_f(f_correct, 1);
-    set_f(f, 1);
+    f_set(f_correct, 1);
+    f_set(f, 1);
     size_t f_state = 0;
 
     printf("Testing... ");
@@ -47,7 +47,7 @@ int main(void)
 
     while (true)
     {
-        bool f_not_done = next_f(&f_state, f);
+        bool f_not_done = f_next(&f_state, f);
         do {
             if (g_signum != 0)
                 goto end;
@@ -56,18 +56,18 @@ int main(void)
                 if (f_not_done) {
                     fprintf(stderr, "[FAILED]\n");
                     fprintf(stderr, "Expected end of sequence.\n");
-                    fprintf(stderr, "Got "); put_f(f);
+                    fprintf(stderr, "Got "); f_print(f);
                     exit(EXIT_FAILURE);
                 }
                 goto end;
             }
             ++progress_counter;
-        } while ( ! valid_f(f_correct));
+        } while ( ! f_valid(f_correct));
 
         if (memcmp(f, f_correct, sizeof(int[BASE])) != 0) {
             fprintf(stderr, "[FAILED]\n");
-            fprintf(stderr, "Expected "); put_f(f_correct);
-            fprintf(stderr, "Got      "); put_f(f);
+            fprintf(stderr, "Expected "); f_print(f_correct);
+            fprintf(stderr, "Got      "); f_print(f);
             fprintf(stderr, "Counter: %zu\n", counter);
             exit(EXIT_FAILURE);
         }

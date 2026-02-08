@@ -2,22 +2,23 @@
 
 // Index of test function. For BASE=16, 145 is ok. For, BASE=48, 432123 is ok.
 #ifndef N
-#define N 432
+#define N 145
 #endif
 
 int main(void)
 {
     int f_mem[BASE + 2] = {0};
     int* f = f_mem + 2;
-    set_f(f, 1);
+    f_set(f, 1);
 
-    for (size_t state = 0, i = 0; i < N; ++i)
-        if ( ! next_f(&state, f))
-            exit(!!fprintf(stderr, "N %i out of bounds.\n", N));
+    size_t count = 0;
+    for (size_t state = 0; count < N; ++count)
+        if ( ! f_next(&state, f))
+            exit(!!fprintf(stderr, "N %i out of bounds. Max N: %zu\n", N, count));
 
-    // Scale
+    // Make fixed for IIR filtering
     for (size_t i = 0; i < BASE; ++i)
-        f[i] = (i+1) << 12; // f[i] <<= 12;
+        f[i] <<= FIXED_WIDTH;
 
     // IIR from right
     int f_iir_mem[BASE + 2];
@@ -27,7 +28,7 @@ int main(void)
         f_iir[i] = (f[i]>>1) + (f_iir[i+1]>>1);
 
     // IIR from left
-    f[-1] = -f[0];
+    f[-1] = -f[0]; // bias to remove kink at i=0. We also lose data at i=0.
     for (size_t i = 0; i != BASE; ++i)
         f[i] = (f[i]>>1) + (f[i-1]>>1);
 
