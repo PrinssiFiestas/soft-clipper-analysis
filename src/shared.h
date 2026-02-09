@@ -14,8 +14,13 @@
 #define BASE 48
 #endif
 
-// Bipolar buffer size.
-#define T (2*BASE + 1)
+// Number of samples. Should be at least 2*BASE to fit a full sinusoid.
+// Slightly bigger adds accuracy, but not by a lot due to inaccuracy of clipper
+// function. Bigger also needs more processing time obviously. Does not need to
+// be a power of two, we use DFT instead of FFT.
+#define T (3*BASE)
+
+#define SAMPLE_RATE (1/T)
 
 // Fixed point bit width. No need to be crazy precise, our clipper is horrible
 // anyway, so let it be smaller to prevent overflow.
@@ -56,7 +61,7 @@ static inline bool f_valid(const int f[BASE])
     return true;
 }
 
-// Next function from function sequence.
+// Next function from function sequence. // TODO indexing
 static inline bool f_next(size_t* i, int f[BASE])
 {
     if (f[0] >= BASE)
@@ -78,29 +83,75 @@ static inline bool f_next(size_t* i, int f[BASE])
     return true;
 }
 
+// Filtering makes the edges of the function go crazy, this is length of
+// extrapolation at the edge.
+#define IIR_TAIL_LENGTH (IIR_POLES << 2)
+
+// Both of these increase smoothing. IIR_INTENSITY also lowers precision, so
+// shouldn't be too high. Higher IIR_POLES is more expensive, also should be
+// modest. More smoothing, better quality second derivative, but too much
+// smoothing make all functions the same.
+#define IIR_INTENSITY 2
+#define IIR_POLES 4
+
 // Scale to fixed width and smooth out crap precision with IIR filter. f_in[0]
 // will be lost due to biasing.
-static inline void f_preprocess(int f_out[restrict BASE], const int f_in[restrict BASE])
+static inline void f_preprocess(int f_out[restrict], const int f_in[restrict BASE])
 {
-    int f_iir_right[BASE + 2];
+    int f_iir_right[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
+    int* f_right = f_iir_right + IIR_TAIL_LENGTH + BASE;
+
+    for (size_t i = 0; i <= BASE; ++i) // copy and scale positive side
+        f_out[i] = f_right[i] = f_in[i] << FIXED_WIDTH;
+    for (size_t i = BASE; i < 1 + BASE + IIR_TAIL_LENGTH; ++i) // fill tail
+        f_out[i] = f_right[i] = f_out[BASE];
+    for (size_t i = 1; i < 1 + BASE + IIR_TAIL_LENGTH; ++i) // mirror negative side
+        f_out[-i] = f_right[-i] = -f_out[i];
+
+    for (size_t k = 0; k < IIR_POLES; ++k) {
+        // IIR filtering from right and left
+        for (int i = 1 + BASE + IIR_TAIL_LENGTH - 1; i >= -BASE - IIR_TAIL_LENGTH; --i)
+            f_right[i] = (f_right[i]>>IIR_INTENSITY) + (f_right[i + 1]>>1);
+        for (int i = -1 - BASE - IIR_TAIL_LENGTH + 1; i <= BASE + IIR_TAIL_LENGTH; ++i)
+            f_out[i] = (f_out[i]>>IIR_INTENSITY) + (f_out[i - 1]>>1);
+
+        // Combine for zero phase
+        for (int i = -BASE - IIR_TAIL_LENGTH; i <= BASE + IIR_TAIL_LENGTH; ++i)
+            f_out[i] += f_right[i];
+    }
+
+    #if 0
+    int f_iir_right[2 + BASE + 2];
     int* f_right = f_iir_right + 2;
 
     // Scale
     for (size_t i = 0; i < BASE; ++i)
         f_out[i] = f_right[i] = f_in[i] << FIXED_WIDTH;
+    f_out[BASE] = f_right[BASE] = f_out[BASE-1] >> 2;
 
     // IIR right
-    for (size_t i = BASE-1-1; i + 1 > 0; --i)
-        f_right[i] = (f_right[i]>>1) + (f_right[i+1]>>1);
+    for (size_t i = BASE-1; i + 1 > 0; --i)
+        f_right[i] = (f_right[i]>>2) + (f_right[i+1]>>1);
 
     // IIR left
     f_out[-1] = -(f_in[0] << FIXED_WIDTH); // bias to remove kink at i=0.
     for (size_t i = 0; i < BASE; ++i)
-        f_out[i] = (f_out[i]<<1) + (f_out[i-1]>>1);
+        f_out[i] = (f_out[i]>>2) + (f_out[i-1]>>1);
 
     // Combine left and right
     for (size_t i = 0; i < BASE; ++i)
-        f_out[i] = (f_out[i] + f_right[i]) >> 1;
+        f_out[i] = f_out[i] + f_right[i];
+
+    // The second derivative is very sensitive to noise, filter once more.
+
+    for (size_t i = BASE-1; i + 1 > 0; --i)
+        f_right[i] = (f_right[i]>>2) + (f_right[i+1]>>1);
+    //f_out[-1] = -(f_in[0] << FIXED_WIDTH);
+    for (size_t i = 0; i < BASE; ++i)
+        f_out[i] = (f_out[i]>>2) + (f_out[i-1]>>1);
+    for (size_t i = 0; i < BASE; ++i)
+        f_out[i] = f_out[i] + f_right[i];
+    #endif
 }
 
 #endif // SHARED_H_INCLUDED

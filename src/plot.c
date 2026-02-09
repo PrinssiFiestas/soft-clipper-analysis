@@ -1,24 +1,51 @@
 #include "shared.h"
 
 // Index of test function. For BASE=16, 145 is ok. For, BASE=48, 432123 is ok.
-#ifndef N
-#define N 145
+#ifndef CUSTOM
+#  ifndef N
+#    define N 145
+#  endif
 #endif
+
+// Define this to plot the second derivative instead of the function.
+//#define SECOND_DERIVATIVE
 
 int main(void)
 {
-    int f_mem[BASE + 2] = {0};
+    int f_mem[2 + BASE + 2] = {0}; // TODO add the extra 2 elements to everything!
     int* f = f_mem + 2;
     f_set(f, 1);
 
+    #ifndef CUSTOM
     size_t count = 0;
     for (size_t state = 0; count < N; ++count)
         if ( ! f_next(&state, f))
             exit(!!fprintf(stderr, "N %i out of bounds. Max N: %zu\n", N, count));
+    #else
+    for (int i = 0; i < BASE; ++i) {
+        double x = (i+.5)/BASE;
+        f[i] = BASE*(CUSTOM);
+    }
+    #endif
 
-    int f_filtered_mem[BASE + 2];
-    int* f_filtered = f_filtered_mem + 2;
-    f_preprocess(f_filtered, f);
+    int f_filtered_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
+    int* f_filtered = f_filtered_mem + IIR_TAIL_LENGTH + BASE;
+    f_preprocess(f_filtered, f - 1);
+
+    #ifndef SECOND_DERIVATIVE
     for (size_t i = 0; i < BASE; ++i)
         printf("%zu, %i\n", i, f_filtered[i]);
+    #endif
+
+    for (int i = 0; i < BASE-1; ++i) // first derivative
+        f_filtered[i] = f_filtered[i + 1] - f_filtered[i];
+    f_filtered[BASE-1] = f_filtered[BASE-2];
+    for (int i = 0; i < BASE-1; ++i) // second derivative
+        f_filtered[i] = f_filtered[i + 1] - f_filtered[i];
+    f_filtered[BASE-1] = f_filtered[BASE-2];
+
+    #ifdef SECOND_DERIVATIVE
+    for (size_t i = 0; i < BASE; ++i)
+        printf("%zu, %i\n", i, f_filtered[i]);
+    #endif
 }

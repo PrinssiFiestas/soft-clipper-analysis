@@ -19,8 +19,8 @@ int main(void)
 
     #ifdef C_HEADER
     printf("// Sines with frequencies of multiples of 1/T.\n");
-    printf("int sines[%i][%i] = {\n", BASE, T);
-    for (int k = 0; k < BASE; ++k) {
+    printf("int sines[%i][%i] = {\n", T/2, T);
+    for (int k = 0; k < T/2; ++k) {
         printf("    [ %i ] = {", k);
         for (int i = 0; i < T; ++i) {
             if ((i & 7) == 0)
