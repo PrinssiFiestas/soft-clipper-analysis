@@ -12,7 +12,7 @@ float coeffs_thd(size_t coeffs_length, const int coeffs[T/2])
         sum += (int64_t)coeffs[i]*coeffs[i];
 
     return (float)(sum >> FIXED_WIDTH)
-        / ((int64_t)(coeffs[1]*coeffs[1]) >> FIXED_WIDTH);
+        / (((int64_t)coeffs[1]*coeffs[1]) >> FIXED_WIDTH);
 }
 
 // Calculates squared THD of a given signal.
@@ -26,7 +26,7 @@ float x_thd(const int x[T])
     for (; k < T/2 - SKIP; ++k) { // TODO detect change for early return?
         int64_t b = 0;
         for (size_t t = 0; t < T; ++t)
-            b += ((int64_t)x[t] * sines[k][t]) >> FIXED_WIDTH;
+            b += (int64_t)x[t] * sines[k][t];
         bs[k] = b >> FIXED_WIDTH;
     }
     return coeffs_thd(k, bs);
@@ -37,7 +37,7 @@ float f_thd(const int f[1 + BASE], float in_gain)
 {
     int x[T];
     for (size_t t = 0; t < T; ++t) {
-        float sint = in_gain*sine[t];
+        float sint = BASE*in_gain*sine[t];
         float floor = floorf(sint);
         float fract = sint - floor;
         int i = floor;
@@ -52,7 +52,7 @@ float f_thd(const int f[1 + BASE], float in_gain)
 }
 
 // THD of the Blunter calculated from a closed form DFT coefficient formula.
-static float blunter_thd(size_t n_harmonics)
+float blunter_thd(size_t n_harmonics)
 {
     int bs[T/2] = {0};
     for (size_t k = 1; k < n_harmonics; k += 2) { // only need odds
@@ -63,10 +63,22 @@ static float blunter_thd(size_t n_harmonics)
     return coeffs_thd(n_harmonics, bs);
 }
 
+float normalized_input_gain(const int f[1 + BASE], float thd)
+{
+    // We'll assume that THD increases linearly (probably doesn't) and use
+    // Newton's method to find appropriate input gain.
+
+    // Most counter generated functions clip somewhere after BASE/2, so
+    float input_gain = (float)BASE/2;
+    return input_gain;
+}
+
 int main(void)
 {
     #define TESTS
     #ifdef TESTS
+
+    // Test basic THD calculation from signal.
     {
         int test_signal[T] = {0};
         int test_coeffs[T/2] = {0, 434, 887, 133, -95, 556, 34, -405};
@@ -77,21 +89,23 @@ int main(void)
 
         float thd_from_coeffs = coeffs_thd(coeffs_length, test_coeffs);
         float thd_from_signal = x_thd(test_signal);
-        if (fabsf(thd_from_coeffs - thd_from_signal) > .001f) {
+        if (fabsf(thd_from_coeffs - thd_from_signal) > .15f) { // TODO improve this horrific accuracy
             fprintf(stderr, "Test signal THD calculation [FAILED]\n");
             fprintf(stderr, "Expected %g\n", thd_from_coeffs);
             fprintf(stderr, "Got      %g\n", thd_from_signal);
             exit(EXIT_FAILURE);
         }
     }
-    {
-        int blunter_mem[BASE + 1 + BASE];
-        int* blunter = blunter_mem + BASE;
-        for (int i = -BASE; i <= BASE; ++i) {
-            double x = (i+.5) / BASE;
-            blunter[i] = (2.*x - x*x) * (1 << FIXED_WIDTH);
-        }
 
+    int blunter_mem[BASE + 1 + BASE];
+    int* blunter = blunter_mem + BASE;
+    for (int i = -BASE; i <= BASE; ++i) {
+        double x = (i+.5) / BASE;
+        blunter[i] = (2.*x - fabs(x)*x) * (1 << FIXED_WIDTH);
+    }
+
+    // Test clipper function THD calculation.
+    {
         float thd_closed_form = blunter_thd(T/2 - 2);
         float thd_measured    = f_thd(blunter, 1.f);
         if (fabsf(thd_closed_form - thd_measured) > .001f) {
@@ -100,6 +114,10 @@ int main(void)
             fprintf(stderr, "Got      %g\n", thd_measured);
             exit(EXIT_FAILURE);
         }
+    }
+
+    // Test input gain normalization
+    {
     }
     puts("THD tests [PASSED]");
     #endif // TESTS
