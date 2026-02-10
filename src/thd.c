@@ -21,7 +21,7 @@ float x_thd(const int x[T])
     bs[0] = 0;
     size_t k = 1;
 
-    const size_t SKIP = 0; // last harmonics are likely to not contribute much.
+    const size_t SKIP = 2; // last harmonics are likely to not contribute much.
     for (; k < T/2 - SKIP; ++k) { // TODO detect change for early return?
         int64_t b = 0;
         for (size_t t = 0; t < T; ++t)
@@ -64,11 +64,9 @@ float blunter_thd(size_t n_harmonics)
 
 float normalized_input_gain(const int f[1 + BASE], float thd)
 {
-    // We'll assume that THD increases linearly (probably doesn't) and use
-    // Newton's method to find appropriate input gain.
-
-    // Most counter generated functions clip somewhere after BASE/2, so
+    // Most counter generated functions clip somewhere after BASE/2.
     float input_gain = (float)BASE/2;
+    // TODO implementation
     return input_gain; (void)f; (void)thd;
 }
 
@@ -76,7 +74,6 @@ int main(void)
 {
     #define TESTS
     #ifdef TESTS
-
     // Test basic THD calculation from signal.
     {
         int test_signal[T] = {0};
@@ -88,10 +85,11 @@ int main(void)
 
         float thd_from_coeffs = coeffs_thd(coeffs_length, test_coeffs);
         float thd_from_signal = x_thd(test_signal);
-        if (fabsf(thd_from_coeffs - thd_from_signal) > .01f) { // TODO improve this horrific accuracy
+        if (fabsf(thd_from_coeffs - thd_from_signal) > .001f) {
             fprintf(stderr, "Test signal THD calculation [FAILED]\n");
             fprintf(stderr, "Expected %g\n", thd_from_coeffs);
             fprintf(stderr, "Got      %g\n", thd_from_signal);
+            fprintf(stderr, "Increase T if this failed due to imprecision.\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -115,7 +113,7 @@ int main(void)
         }
     }
 
-    // Test input gain normalization
+    // Test and bench input gain normalization
     {
     }
     puts("THD tests [PASSED]");

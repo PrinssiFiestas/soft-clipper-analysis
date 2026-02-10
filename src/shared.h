@@ -8,6 +8,8 @@
 #include <string.h>
 #include <assert.h>
 
+// TODO names are starting to get confusing, fix this!
+
 #ifndef BASE // defined in Makefile, this is here just for clangd.
 // Precision of clipping function and unipolar function length. Buffers of this
 // size are assumed to have a couple of extra elements at index -1 and -2.
@@ -15,14 +17,12 @@
 #endif
 
 // Number of samples. Should be at least 2*BASE to fit a full sinusoid.
-// Slightly bigger adds accuracy, but not by a lot due to inaccuracy of clipper
-// function. Bigger also needs more processing time obviously. Does not need to
-// be a power of two, we use DFT instead of FFT.
-#define T (3*BASE)
+// Bigger makes DFT much more accurate, but clearly needs more processing time.
+// Does not need to be a power of two, we use DFT instead of FFT.
+#define T (7*BASE)
 
-// Fixed point bit width. No need to be crazy precise, our clipper is horrible
-// anyway, so let it be smaller to prevent overflow.
-#define FIXED_WIDTH 16
+// Fixed point fractional bits. 24 is guaranteed to overflow, so keep it sane.
+#define FIXED_WIDTH 20
 
 // Amplitude of sines or fixed width precision.
 #define A (1<<FIXED_WIDTH)
