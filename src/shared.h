@@ -103,4 +103,6 @@ static inline void f_preprocess(int f_out[restrict], const int f_in[restrict BAS
     }
 }
 
+// TODO float implementation of f_preprocess().
+
 #endif // SHARED_H_INCLUDED
