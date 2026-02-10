@@ -1,4 +1,4 @@
-CC = clang
+CC = gcc
 CFLAGS = -Wall -Wextra -ggdb3 -gdwarf -DBASE=$(BASE) -march=native
 # Remember to not add -O3 by default, we may want to plot in Seergdb.
 

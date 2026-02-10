@@ -22,7 +22,7 @@
 
 // Fixed point bit width. No need to be crazy precise, our clipper is horrible
 // anyway, so let it be smaller to prevent overflow.
-#define FIXED_WIDTH 12
+#define FIXED_WIDTH 16
 
 // Amplitude of sines or fixed width precision.
 #define A (1<<FIXED_WIDTH)

@@ -11,18 +11,17 @@ float coeffs_thd(size_t coeffs_length, const int coeffs[T/2])
     for (size_t i = 2; i < coeffs_length; ++i)
         sum += (int64_t)coeffs[i]*coeffs[i];
 
-    return (float)(sum >> FIXED_WIDTH)
-        / (((int64_t)coeffs[1]*coeffs[1]) >> FIXED_WIDTH);
+    return (float)sum / ((int64_t)coeffs[1]*coeffs[1]);
 }
 
 // Calculates squared THD of a given signal.
 float x_thd(const int x[T])
 {
-    int bs[T/2]; // filled with b below, don't waste time initializing.
+    int bs[T/2];
     bs[0] = 0;
     size_t k = 1;
 
-    const size_t SKIP = 2; // last harmonics are likely to not contribute much.
+    const size_t SKIP = 0; // last harmonics are likely to not contribute much.
     for (; k < T/2 - SKIP; ++k) { // TODO detect change for early return?
         int64_t b = 0;
         for (size_t t = 0; t < T; ++t)
@@ -70,7 +69,7 @@ float normalized_input_gain(const int f[1 + BASE], float thd)
 
     // Most counter generated functions clip somewhere after BASE/2, so
     float input_gain = (float)BASE/2;
-    return input_gain;
+    return input_gain; (void)f; (void)thd;
 }
 
 int main(void)
@@ -89,7 +88,7 @@ int main(void)
 
         float thd_from_coeffs = coeffs_thd(coeffs_length, test_coeffs);
         float thd_from_signal = x_thd(test_signal);
-        if (fabsf(thd_from_coeffs - thd_from_signal) > .15f) { // TODO improve this horrific accuracy
+        if (fabsf(thd_from_coeffs - thd_from_signal) > .01f) { // TODO improve this horrific accuracy
             fprintf(stderr, "Test signal THD calculation [FAILED]\n");
             fprintf(stderr, "Expected %g\n", thd_from_coeffs);
             fprintf(stderr, "Got      %g\n", thd_from_signal);
