@@ -7,17 +7,35 @@ void set_signum(int signum)
     g_signum = signum;
 }
 
-// Calculate next potentially invalid f. Return true if success, false if
-// overflow.
-bool f_count_next(int f[BASE])
+// Calculate next potentially invalid f. Return true if success, false if end of
+// sequence.
+bool f_count_next(int f[1 + BASE])
 {
-    for (size_t i = BASE - 1; i + 1 > 0; --i) {
+    for (size_t i = BASE; i > 0; --i) {
         f[i]++;
         if (f[i] <= BASE)
             return true;
         f[i] = 1;
     }
     return false;
+}
+
+// Checks if function is increasing and it's derivative is decreasing.
+static inline bool f_valid(const int f[1 + BASE])
+{
+    bool value_increasing = true;
+    bool diff_decreasing  = true;
+    int  diff = f[1];
+
+    for (size_t i = 1; i < 1 + BASE; ++i) {
+        value_increasing = f[i] >= f[i-1];
+        diff_decreasing  = f[i] - f[i-1] <= diff;
+        if (!value_increasing || !diff_decreasing)
+            return false;
+        diff = f[i] - f[i-1];
+    }
+
+    return true;
 }
 
 int main(void)
@@ -27,12 +45,11 @@ int main(void)
         exit(EXIT_FAILURE);
     }
 
-    int f_mem[2 * (2/*leading zeros*/ + BASE)] = {0};
-    int* f = f_mem + 2;
-    int* f_correct = f_mem + 2 + BASE + 2;
+    int f[1 + BASE];
+    int f_correct[1 + BASE];
     f_set(f_correct, 1);
     f_set(f, 1);
-    size_t f_state = 0;
+    size_t f_state = 1;
 
     printf("Testing... ");
     fflush(stdout);
@@ -69,7 +86,7 @@ int main(void)
             ++progress_counter;
         } while ( ! f_valid(f_correct));
 
-        if (memcmp(f, f_correct, sizeof(int[BASE])) != 0) {
+        if (memcmp(f, f_correct, sizeof(int[1 + BASE])) != 0) {
             fprintf(stderr, "[FAILED]\n");
             fprintf(stderr, "Expected "); f_print(f_correct);
             fprintf(stderr, "Got      "); f_print(f);

@@ -1,8 +1,8 @@
 #include "shared.h"
 
-// Index of test function. For BASE=16, 145 is ok. For, BASE=48, 432123 is ok.
 #ifndef CUSTOM
 #  ifndef N
+// Index of test function. For BASE=16, 145 is ok. For, BASE=48, 432123 is ok.
 #    define N 145
 #  endif
 #endif
@@ -12,13 +12,12 @@
 
 int main(void)
 {
-    int f_mem[2 + BASE + 2] = {0}; // TODO add the extra 2 elements to everything!
-    int* f = f_mem + 2;
+    int f[1 + BASE];
     f_set(f, 1);
 
     #ifndef CUSTOM
     size_t count = 0;
-    for (size_t state = 0; count < N; ++count)
+    for (size_t state = 1; count < N; ++count)
         if ( ! f_next(&state, f))
             exit(!!fprintf(stderr, "N %i out of bounds. Max N: %zu\n", N, count));
     #else
@@ -30,7 +29,7 @@ int main(void)
 
     int f_filtered_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
     int* f_filtered = f_filtered_mem + IIR_TAIL_LENGTH + BASE;
-    f_preprocess(f_filtered, f - 1);
+    f_preprocess(f_filtered, f);
 
     #ifndef SECOND_DERIVATIVE
     for (size_t i = 0; i < BASE; ++i)

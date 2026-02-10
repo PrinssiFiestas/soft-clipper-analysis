@@ -13,8 +13,9 @@ void count(int f[])
 
 int main(void)
 {
-    int f[BASE/*negs*/ + 1/*zero*/ + BASE/*poss*/] = {0};
-    int*const fp = f + BASE + 1; // positive side of f
-
-    count(fp);
+    int f[1+BASE] = {0};
+    f_set(f, 1);
+    f_print(f);
+    for (size_t i = 1; f_next(&i, f); f_print(f))
+        ;
 }

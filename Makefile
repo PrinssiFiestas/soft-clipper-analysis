@@ -9,6 +9,7 @@ help:
 	@echo '  sines BASE=<base>                   Generate a table of sines of multiples of frequencies.'
 	@echo '  plot BASE=<base> N=<idx>            Generate CSV of a function of given BASE and index N.'
 	@echo '  plot BASE=<base> CUSTOM=<function>  Generate CSV of a custom C expression e.g. x*x.'
+	@echo '  clean                               Delete build artifacts.'
 	@exit 1
 
 sequence:
@@ -29,3 +30,6 @@ endif
 plot:
 	@mkdir -p build
 	@$(CC) -o build/plot $(CFLAGS) $(DCUSTOM) -DN=$N src/plot.c && ./build/plot
+
+clean:
+	rm -rf build
