@@ -1,4 +1,4 @@
-CC = gcc
+CC = clang
 CFLAGS = -Wall -Wextra -ggdb3 -gdwarf -DBASE=$(BASE) -march=native
 # Remember to not add -O3 by default, we may want to plot in Seergdb.
 
@@ -9,6 +9,7 @@ help:
 	@echo '  sines BASE=<base>                   Generate a table of sines of multiples of frequencies.'
 	@echo '  plot BASE=<base> N=<idx>            Generate CSV of a function of given BASE and index N.'
 	@echo '  plot BASE=<base> CUSTOM=<function>  Generate CSV of a custom C expression e.g. x*x.'
+	@echo '  test_thd BASE=<base>                Test THD calculation.
 	@echo '  clean                               Delete build artifacts.'
 	@exit 1
 
@@ -30,6 +31,11 @@ endif
 plot:
 	@mkdir -p build
 	@$(CC) -o build/plot $(CFLAGS) $(DCUSTOM) -DN=$N src/plot.c && ./build/plot
+
+test_thd:
+	@mkdir -p build
+	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
+	@$(CC) -o build/testthd $(CFLAGS) -fsanitize=undefined -lm src/thd.c && ./build/testthd
 
 clean:
 	rm -rf build
