@@ -92,7 +92,7 @@ static inline void f_preprocess(int f_out[restrict], const int f_in[restrict BAS
 
     for (size_t k = 0; k < IIR_POLES; ++k) {
         // IIR filtering from right and left
-        for (int i = 1 + BASE + IIR_TAIL_LENGTH - 1; i >= -BASE - IIR_TAIL_LENGTH; --i)
+        for (int i = 1 + BASE + IIR_TAIL_LENGTH - 2; i >= -BASE - IIR_TAIL_LENGTH; --i)
             f_right[i] = (f_right[i]>>IIR_INTENSITY) + (f_right[i + 1]>>1);
         for (int i = -1 - BASE - IIR_TAIL_LENGTH + 1; i <= BASE + IIR_TAIL_LENGTH; ++i)
             f_out[i] = (f_out[i]>>IIR_INTENSITY) + (f_out[i - 1]>>1);

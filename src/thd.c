@@ -72,7 +72,31 @@ float normalized_input_gain(const int f[1 + BASE], float thd)
 
 int main(void)
 {
-    #define TESTS
+    // #define TESTS // for THD unit tests
+    #define THD_PLOT // generate CSV describing THD as a function of input gain
+
+    #ifdef THD_PLOT
+    {
+        int counter[1 + BASE];
+        f_set(counter, 1);
+        size_t sequence_count = 1;
+        for (size_t counter_state = 1; f_next(&counter_state, counter); ++sequence_count)
+            ;
+        f_set(counter, 1);
+
+        int func_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
+        int* clipper = func_mem + IIR_TAIL_LENGTH + BASE;
+
+        for (float input_gain = .1f; input_gain < 2.f; input_gain += .1f) {
+            f_preprocess(clipper, counter);
+            printf("%g", input_gain);
+            for (size_t counter_state = 1; f_next(&counter_state, counter); )
+                printf(", %g", f_thd(clipper, input_gain));
+            puts("");
+        }
+    }
+    #endif // THD_PLOT
+
     #ifdef TESTS
     // Test basic THD calculation from signal.
     {
