@@ -2,27 +2,26 @@
 #include "../build/sines.c"
 #include <math.h>
 
-// TODO we only need odd harmonics.
+// TODO get rid of this after dynamic early return implemented
+#define SKIP 2 // last harmonics are likely to not contribute much.
 
 // Calculates squared THD from harmonics' amplitudes.
-float coeffs_thd(size_t coeffs_length, const int coeffs[T/2])
+float coeffs_thd(size_t coeffs_length, const int coeffs[T/4])
 {
     int64_t sum = 0;
-    for (size_t i = 2; i < coeffs_length; ++i)
+    for (size_t i = 1; i < coeffs_length; ++i)
         sum += (int64_t)coeffs[i]*coeffs[i];
 
-    return (float)sum / ((int64_t)coeffs[1]*coeffs[1]);
+    return (float)sum / ((int64_t)coeffs[0]*coeffs[0]);
 }
 
 // Calculates squared THD of a given signal.
 float x_thd(const int x[T])
 {
-    int bs[T/2];
-    bs[0] = 0;
-    size_t k = 1;
+    int bs[T/4];
+    size_t k = 0;
 
-    const size_t SKIP = 2; // last harmonics are likely to not contribute much.
-    for (; k < T/2 - SKIP; ++k) { // TODO detect change for early return?
+    for (; k < T/4 - SKIP; ++k) { // TODO detect change for early return? Then we don't need skip.
         int64_t b = 0;
         for (size_t t = 0; t < T; ++t)
             b += (int64_t)x[t] * sines[k][t];
@@ -45,7 +44,7 @@ float f_thd(const int f[1 + BASE], float in_gain)
         else if (i < -BASE)
             x[t] = f[-BASE];
         else
-            x[t] = (1.f-fract)*f[i] + fract*f[i + 1];
+            x[t] = (1.f-fract)*f[i] + fract*f[i+1];
     }
     return x_thd(x);
 }
@@ -53,12 +52,13 @@ float f_thd(const int f[1 + BASE], float in_gain)
 // THD of the Blunter calculated from a closed form DFT coefficient formula.
 float blunter_thd(size_t n_harmonics)
 {
-    int bs[T/2] = {0};
-    for (size_t k = 1; k < n_harmonics; k += 2) { // only need odds
+    int bs[T/4] = {0};
+    for (size_t i = 0; i < n_harmonics; ++i) {
+        size_t k = 2*i + 1;
         double b = 8. / (M_PI*k*k*k - 4.*M_PI*k);
-        bs[k] = b * (1 << FIXED_WIDTH);
+        bs[i] = b * (1 << FIXED_WIDTH);
     }
-    bs[1] += 2 << FIXED_WIDTH;
+    bs[0] += 2 << FIXED_WIDTH;
     return coeffs_thd(n_harmonics, bs);
 }
 
@@ -72,28 +72,37 @@ float normalized_input_gain(const int f[1 + BASE], float thd)
 
 int main(void)
 {
-    // #define TESTS // for THD unit tests
-    #define THD_PLOT // generate CSV describing THD as a function of input gain
+    #define TESTS // for THD unit tests
+    //#define THD_PLOT // generate CSV describing THD as a function of input gain
 
     #ifdef THD_PLOT
     {
         int counter[1 + BASE];
         f_set(counter, 1);
-        size_t sequence_count = 1;
-        for (size_t counter_state = 1; f_next(&counter_state, counter); ++sequence_count)
-            ;
-        f_set(counter, 1);
 
         int func_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
         int* clipper = func_mem + IIR_TAIL_LENGTH + BASE;
+        size_t skip = 0;
 
-        for (float input_gain = .1f; input_gain < 2.f; input_gain += .1f) {
-            f_preprocess(clipper, counter);
-            printf("%g", input_gain);
-            for (size_t counter_state = 1; f_next(&counter_state, counter); )
-                printf(", %g", f_thd(clipper, input_gain));
-            puts("");
+        for (float input_gain = .1f; input_gain <= 2.f; input_gain += .1f) {
+            f_set(counter, 1);
+            for (size_t counter_state = 1; f_next(&counter_state, counter); ) {
+                f_preprocess(clipper, counter);
+                if ((skip++ & ((1<<3)-1)) == 0)
+                    printf("%g, %g\n", input_gain, f_thd(clipper, input_gain));
+            }
         }
+
+        // size_t skip = 0;
+        // for (float input_gain = .1f; input_gain < 2.f; input_gain += .1f) {
+        //     f_preprocess(clipper, counter);
+        //     printf("%g", input_gain);
+        //     f_set(counter, 1);
+        //     for (size_t counter_state = 1; f_next(&counter_state, counter); )
+        //         if ((skip++ & 15) == 0)
+        //             printf(", %g", f_thd(clipper, input_gain));
+        //     puts("");
+        // }
     }
     #endif // THD_PLOT
 
@@ -101,9 +110,9 @@ int main(void)
     // Test basic THD calculation from signal.
     {
         int test_signal[T] = {0};
-        int test_coeffs[T/2] = {0, 434, 887, 133, -95, 556, 34, -405};
+        int test_coeffs[T/4] = {714, 434, 887, 133, -95, 556, 34, -405};
         size_t coeffs_length = 8;
-        for (size_t k = 1; k < coeffs_length; ++k)
+        for (size_t k = 0; k < coeffs_length; ++k)
             for (size_t t = 0; t < T; ++t)
                 test_signal[t] += ((int64_t)test_coeffs[k] * sines[k][t]) >> FIXED_WIDTH ;
 
@@ -127,7 +136,7 @@ int main(void)
 
     // Test clipper function THD calculation.
     {
-        float thd_closed_form = blunter_thd(T/2 - 2);
+        float thd_closed_form = blunter_thd(T/4 - SKIP);
         float thd_measured    = f_thd(blunter, 1.f);
         if (fabsf(thd_closed_form - thd_measured) > .001f) {
             fprintf(stderr, "Blunter THD calculation [FAILED]\n");

@@ -27,6 +27,10 @@
 // Amplitude of sines or fixed width precision.
 #define A (1<<FIXED_WIDTH)
 
+// Initialize Generator. All zeros doesn't make sense, so start with step to
+// one. Starting from a seemingly hard clipper seems counter intuitive, but the
+// IIR filter turns it into a soft clipper. The first ones will also differ
+// from some seemingly equivalent ones with more gain due to the filtering.
 static inline void f_set(int f[1 + BASE], int n)
 {
     f[0] = 0;
@@ -77,7 +81,7 @@ static inline bool f_next(size_t* f_state, int f[1 + BASE])
 #define IIR_INTENSITY 2
 #define IIR_POLES 4
 
-// Scale to fixed width and smooth out crap precision with IIR filter.
+// Scale to fixed width and smooth out kinks with IIR filter.
 static inline void f_preprocess(int f_out[restrict], const int f_in[restrict BASE])
 {
     int f_right_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
