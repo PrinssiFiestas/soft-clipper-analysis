@@ -21,6 +21,8 @@ float coeffs_thd(size_t coeffs_length, const fixed_t coeffs[T/4])
     int64_t sum = 0;
     for (size_t i = 1; i < coeffs_length; ++i)
         sum += (int64_t)coeffs[i]*coeffs[i];
+    if (sum == 0) // very unlikey, but possible for clippers with large linear
+        sum = 1;  // region. Zero would cause integer zero division later.
 
     return (float)sum / ((int64_t)coeffs[0]*coeffs[0]);
 }
@@ -31,17 +33,6 @@ float x_thd(const fixed_t x[T])
     fixed_t bs[T/4];
     size_t k = 0;
 
-    // First iteration of the loop below for safe bs[k-1] indexing.
-    {
-        #ifdef BENCH
-        ++g_dft_coeff_calculation_count;
-        #endif
-        int64_t b = 0;
-        for (size_t t = 0; t < T; ++t)
-            b += (int64_t)x[t] * sines[k][t];
-        bs[k++] = b >> FIXED_WIDTH;
-    }
-
     for (; k < T/4 - SKIP; ++k) {
         #ifdef BENCH
         ++g_dft_coeff_calculation_count;
@@ -51,11 +42,9 @@ float x_thd(const fixed_t x[T])
             b += (int64_t)x[t] * sines[k][t];
         bs[k] = b >> FIXED_WIDTH;
 
-        // Remember that the coefficients will be squared making .1 equivalent
-        // to .1^2 = .001, so this seemingly very early return (and it is, it
-        // can cut coefficient calculation count by more than 30%) still yields
-        // to accurate results.
-        if (is_equal_fixed(bs[k], bs[k - 1], .1*A))
+        // k must be large enough to ensure that it is safe to ignore the rest
+        // without too much loss of accuracy.
+        if (k > 2 && is_equal_fixed(bs[k], bs[k - 1], .1*A))
             break;
     }
     return coeffs_thd(k, bs);
