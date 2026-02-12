@@ -6,15 +6,15 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <time.h>
 #include <assert.h>
 
+// Fixed point type.
 typedef int fixed_t;
 
-// TODO names are starting to get confusing, fix this!
-
 #ifndef BASE // defined in Makefile, this is here just for clangd.
-// Precision of clipping function and unipolar function length. Buffers of this
-// size are assumed to have a couple of extra elements at index -1 and -2.
+// Generator number base. This will also determine the precision of the
+// generated clipping function.
 #define BASE 48
 #endif
 
@@ -29,15 +29,16 @@ typedef int fixed_t;
 // Amplitude of sines or fixed width precision.
 #define A (1<<FIXED_WIDTH)
 
-// Initialize Generator. All zeros doesn't make sense, so start with step to
-// one. Starting from a seemingly hard clipper seems counter intuitive, but the
-// IIR filter turns it into a soft clipper. The first ones will also differ
-// from some seemingly equivalent ones with more gain due to the filtering.
-static inline void f_set(int f[1 + BASE], int n)
+// Initialize clipper function generator.
+static inline void f_init(int f[1 + BASE])
 {
+    //All zeros doesn't make sense, so start with step to one. Starting from a
+    // seemingly hard clipper seems counter intuitive, but the IIR filter turns
+    // it into a soft clipper. The first ones will also differ from some
+    // seemingly equivalent ones with more gain due to the filtering.
     f[0] = 0;
     for (size_t i = 1; i < 1 + BASE; ++i)
-        f[i] = n;
+        f[i] = 1;
 }
 
 static inline void f_print(const int f[1 + BASE])
@@ -49,7 +50,7 @@ static inline void f_print(const int f[1 + BASE])
 }
 
 // Next function from function sequence. f_state should be initialized to one.
-// f should be initialized using f_set().
+// f should be initialized using f_init().
 static inline bool f_next(size_t* f_state, int f[1 + BASE])
 {
     size_t* i = f_state;
@@ -84,7 +85,7 @@ static inline bool f_next(size_t* f_state, int f[1 + BASE])
 #define IIR_POLES 4
 
 // Scale to fixed width and smooth out kinks with IIR filter.
-static inline void f_preprocess(fixed_t f_out[restrict], const int f_in[restrict BASE])
+static inline void f_filter(fixed_t f_out[restrict], const int f_in[restrict BASE])
 {
     fixed_t f_right_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
     fixed_t* f_right = f_right_mem + IIR_TAIL_LENGTH + BASE;
@@ -109,8 +110,6 @@ static inline void f_preprocess(fixed_t f_out[restrict], const int f_in[restrict
     }
 }
 
-// TODO float implementation of f_preprocess().
-
 // Compare floating point numbers with given precision.
 static inline bool is_equal_float(float a, float b, float max_relative_diff)
 {
@@ -132,4 +131,19 @@ static inline bool is_equal_fixed(fixed_t a, fixed_t b, fixed_t max_relative_dif
     fixed_t max_ab = a > b ? a : b;
     return (int64_t)abs_ab << FIXED_WIDTH < (int64_t)max_relative_diff * max_ab;
 }
+
+// Time since epoch in nanoseconds.
+__attribute__((always_inline)) static inline __uint128_t time_begin()
+{
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    return (__uint128_t)1000000000*ts.tv_sec + ts.tv_nsec;
+}
+
+// Time since start_ns in seconds, where start_ns is in nanoseconds.
+__attribute__((always_inline)) static inline double time_diff(__uint128_t start_ns)
+{
+    return (double)(uint64_t)(time_begin() - start_ns) / 1000000000.;
+}
+
 #endif // SHARED_H_INCLUDED

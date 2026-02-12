@@ -13,7 +13,7 @@
 int main(void)
 {
     int f[1 + BASE];
-    f_set(f, 1);
+    f_init(f);
 
     #ifndef CUSTOM
     size_t count = 0;
@@ -29,7 +29,7 @@ int main(void)
 
     fixed_t f_filtered_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
     fixed_t* f_filtered = f_filtered_mem + IIR_TAIL_LENGTH + BASE;
-    f_preprocess(f_filtered, f);
+    f_filter(f_filtered, f);
 
     #ifndef SECOND_DERIVATIVE
     for (size_t i = 0; i < BASE; ++i)

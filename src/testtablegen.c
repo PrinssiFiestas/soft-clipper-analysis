@@ -47,8 +47,8 @@ int main(void)
 
     int f[1 + BASE];
     int f_correct[1 + BASE];
-    f_set(f_correct, 1);
-    f_set(f, 1);
+    f_init(f_correct);
+    f_init(f);
     size_t f_state = 1;
 
     printf("Testing... ");

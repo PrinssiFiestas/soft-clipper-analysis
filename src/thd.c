@@ -2,11 +2,18 @@
 #include "../build/sines.c"
 #include <math.h>
 
-// TODO get rid of this after dynamic early return implemented
+#define TESTS // for THD unit tests
+// #define THD_PLOT // generate CSV describing THD as a function of input gain
+#define BENCH // benchmark
+
 #define SKIP 2 // last harmonics are likely to not contribute much.
 
 // We'll normalize agains Blunter's THD by default.
 #define THD_NORMALIZED 0.0222559f
+
+#ifdef BENCH
+size_t g_dft_coeff_calculation_count = 0;
+#endif
 
 // Calculates squared THD from harmonics' amplitudes.
 float coeffs_thd(size_t coeffs_length, const fixed_t coeffs[T/4])
@@ -24,17 +31,38 @@ float x_thd(const fixed_t x[T])
     fixed_t bs[T/4];
     size_t k = 0;
 
-    for (; k < T/4 - SKIP; ++k) { // TODO detect change for early return? Then we don't need skip.
+    // First iteration of the loop below for safe bs[k-1] indexing.
+    {
+        #ifdef BENCH
+        ++g_dft_coeff_calculation_count;
+        #endif
+        int64_t b = 0;
+        for (size_t t = 0; t < T; ++t)
+            b += (int64_t)x[t] * sines[k][t];
+        bs[k++] = b >> FIXED_WIDTH;
+    }
+
+    for (; k < T/4 - SKIP; ++k) {
+        #ifdef BENCH
+        ++g_dft_coeff_calculation_count;
+        #endif
         int64_t b = 0;
         for (size_t t = 0; t < T; ++t)
             b += (int64_t)x[t] * sines[k][t];
         bs[k] = b >> FIXED_WIDTH;
+
+        // Remember that the coefficients will be squared making .1 equivalent
+        // to .1^2 = .001, so this seemingly very early return (and it is, it
+        // can cut coefficient calculation count by more than 30%) still yields
+        // to accurate results.
+        if (is_equal_fixed(bs[k], bs[k - 1], .1*A))
+            break;
     }
     return coeffs_thd(k, bs);
 }
 
 // Calculates squared THD of clipper using DFT
-float f_thd(const fixed_t f[1 + BASE], float in_gain)
+float f_thd(const fixed_t f[restrict], float in_gain)
 {
     fixed_t x[T];
     for (size_t t = 0; t < T; ++t) {
@@ -114,24 +142,59 @@ float normalized_input_gain(const fixed_t f[1 + BASE])
 
 int main(void)
 {
-    #define TESTS // for THD unit tests
-    //#define THD_PLOT // generate CSV describing THD as a function of input gain
+
+    #ifdef BENCH
+    {
+        int f_gen[1 + BASE];
+        f_init(f_gen);
+        fixed_t f_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
+        fixed_t* f = f_mem + IIR_TAIL_LENGTH + BASE;
+
+        __uint128_t t_start = time_begin();
+        __uint128_t t_filter_total = 0;
+        __uint128_t t_thd_total    = 0;
+        float thd_dummy = 0.f; // dummy variable to prevent compiler optimizing timing away.
+
+        for (size_t f_gen_state = 1; f_next(&f_gen_state, f_gen); )
+        {
+            __uint128_t t_filter = time_begin();
+            __asm__ __volatile__("":::"memory");
+            f_filter(f, f_gen);
+            __asm__ __volatile__("":::"memory");
+            t_filter_total += time_begin() - t_filter;
+            __asm__ __volatile__("":::"memory");
+            __uint128_t t_thd = time_begin();
+            __asm__ __volatile__("":::"memory");
+            thd_dummy += normalized_input_gain(f);
+            __asm__ __volatile__("":::"memory");
+            t_thd_total += time_begin() - t_thd;
+        }
+        double time = time_diff(t_start);
+
+        printf("%f\r", thd_dummy);
+        printf("Done benchmarking.\n");
+        printf("Total time:     %g\n", time);
+        printf("Filtering time: %g\n", (double)t_filter_total / 1000000000.);
+        printf("THD time:       %g\n", (double)t_thd_total / 1000000000.);
+        printf("DFT coefficients calculated %zu times.\n", g_dft_coeff_calculation_count);
+    }
+    #endif
 
     #ifdef THD_PLOT
     {
-        int counter[1 + BASE];
-        f_set(counter, 1);
+        int f_gen[1 + BASE];
+        f_init(f_gen);
 
         fixed_t func_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
-        int* clipper = func_mem + IIR_TAIL_LENGTH + BASE;
+        fixed_t* f = func_mem + IIR_TAIL_LENGTH + BASE;
         size_t skip = 0;
 
         for (float input_gain = .0125f; input_gain <= 1.f; input_gain += .0125f) {
-            f_set(counter, 1);
-            for (size_t counter_state = 1; f_next(&counter_state, counter); ) {
-                f_preprocess(clipper, counter);
+            f_init(f_gen);
+            for (size_t f_gen_state = 1; f_next(&f_gen_state, f_gen); ) {
+                f_filter(f, f_gen);
                 if ((skip++ & ((1<<5)-1)) == 0)
-                    printf("%g, %g\n", input_gain, f_thd(clipper, input_gain));
+                    printf("%g, %g\n", input_gain, f_thd(f, input_gain));
             }
         }
     }

@@ -35,7 +35,7 @@ plot:
 test_thd:
 	@mkdir -p build
 	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
-	@$(CC) -o build/testthd $(CFLAGS) -fsanitize=undefined -lm src/thd.c && ./build/testthd
+	@$(CC) -o build/testthd $(CFLAGS) -O3 -lm src/thd.c && ./build/testthd
 
 clean:
 	rm -rf build
