@@ -5,8 +5,11 @@
 // TODO get rid of this after dynamic early return implemented
 #define SKIP 2 // last harmonics are likely to not contribute much.
 
+// We'll normalize agains Blunter's THD by default.
+#define THD_NORMALIZED 0.0222559f
+
 // Calculates squared THD from harmonics' amplitudes.
-float coeffs_thd(size_t coeffs_length, const int coeffs[T/4])
+float coeffs_thd(size_t coeffs_length, const fixed_t coeffs[T/4])
 {
     int64_t sum = 0;
     for (size_t i = 1; i < coeffs_length; ++i)
@@ -16,9 +19,9 @@ float coeffs_thd(size_t coeffs_length, const int coeffs[T/4])
 }
 
 // Calculates squared THD of a given signal.
-float x_thd(const int x[T])
+float x_thd(const fixed_t x[T])
 {
-    int bs[T/4];
+    fixed_t bs[T/4];
     size_t k = 0;
 
     for (; k < T/4 - SKIP; ++k) { // TODO detect change for early return? Then we don't need skip.
@@ -31,9 +34,9 @@ float x_thd(const int x[T])
 }
 
 // Calculates squared THD of clipper using DFT
-float f_thd(const int f[1 + BASE], float in_gain)
+float f_thd(const fixed_t f[1 + BASE], float in_gain)
 {
-    int x[T];
+    fixed_t x[T];
     for (size_t t = 0; t < T; ++t) {
         float sint = BASE*in_gain*sine[t];
         float floor = floorf(sint);
@@ -52,7 +55,7 @@ float f_thd(const int f[1 + BASE], float in_gain)
 // THD of the Blunter calculated from a closed form DFT coefficient formula.
 float blunter_thd(size_t n_harmonics)
 {
-    int bs[T/4] = {0};
+    fixed_t bs[T/4] = {0};
     for (size_t i = 0; i < n_harmonics; ++i) {
         size_t k = 2*i + 1;
         double b = 8. / (M_PI*k*k*k - 4.*M_PI*k);
@@ -62,12 +65,51 @@ float blunter_thd(size_t n_harmonics)
     return coeffs_thd(n_harmonics, bs);
 }
 
-float normalized_input_gain(const int f[1 + BASE], float thd)
+// Returns an input gain such that f_thd(f, input_gain) ≈ THD_NORMALIZED.
+float normalized_input_gain(const fixed_t f[1 + BASE])
 {
-    // Most counter generated functions clip somewhere after BASE/2.
-    float input_gain = (float)BASE/2;
-    // TODO implementation
-    return input_gain; (void)f; (void)thd;
+    // Plotting many clipper's THD's as functions of input gains showed that
+    // most clippers have close to zero THD when x < 0.3f. Same plots revealed
+    // that the average of x == .6f got same THD as the Blunter's THD. So we
+    // start our estimate with that average and use the minimum to get next data
+    // point.
+    const float x_min = .3f;
+    const float y_min = -THD_NORMALIZED; // can't have THD < 0
+    const float x_avg = .6f;
+
+    float x0 = x_avg;
+    float y0 = f_thd(f, x0) - THD_NORMALIZED;
+
+    // Line between average minimum point (x_min, y_min) to first data point
+    // (x0, y0) is described by k*(x-x_min) + y0.
+    float k = (y0 - y_min) / (x0 - x_min);
+
+    // Solving for next x1 from k*(x1-x_min) + y0 == 0 gives us
+    float x1 = x_min - y_min/k;
+    float y1 = f_thd(f, x1) - THD_NORMALIZED;
+
+    // We have two data points now, use secant method to find final result fast.
+    float x2 = x1;
+    float y2 = y1;
+    while (fabsf(y2) > .01f * THD_NORMALIZED) {
+        if (y1 == y0) {
+            // THD as a function of input gain is monotone, we should never get
+            // here in theory, but there is a miniscule chance that this could
+            // happen due to noise. This would crash f_thd(), which would be
+            // really unfortunate after hours and hours of number crunching.
+            if (y2 > 0.f) // returning unfair normalization is ok.
+                return x2;
+            else // return value that discards f.
+                return INFINITY; // TODO can this cause problems down the line?
+        }
+        x2 = x1 - y1 * (x1 - x0) / (y1 - y0);
+        y2 = f_thd(f, x2) - THD_NORMALIZED;
+        x0 = x1;
+        x1 = x2;
+        y0 = y1;
+        y1 = y2;
+    }
+    return x2;
 }
 
 int main(void)
@@ -80,37 +122,31 @@ int main(void)
         int counter[1 + BASE];
         f_set(counter, 1);
 
-        int func_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
+        fixed_t func_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
         int* clipper = func_mem + IIR_TAIL_LENGTH + BASE;
         size_t skip = 0;
 
-        for (float input_gain = .1f; input_gain <= 2.f; input_gain += .1f) {
+        for (float input_gain = .0125f; input_gain <= 1.f; input_gain += .0125f) {
             f_set(counter, 1);
             for (size_t counter_state = 1; f_next(&counter_state, counter); ) {
                 f_preprocess(clipper, counter);
-                if ((skip++ & ((1<<3)-1)) == 0)
+                if ((skip++ & ((1<<5)-1)) == 0)
                     printf("%g, %g\n", input_gain, f_thd(clipper, input_gain));
             }
         }
-
-        // size_t skip = 0;
-        // for (float input_gain = .1f; input_gain < 2.f; input_gain += .1f) {
-        //     f_preprocess(clipper, counter);
-        //     printf("%g", input_gain);
-        //     f_set(counter, 1);
-        //     for (size_t counter_state = 1; f_next(&counter_state, counter); )
-        //         if ((skip++ & 15) == 0)
-        //             printf(", %g", f_thd(clipper, input_gain));
-        //     puts("");
-        // }
     }
     #endif // THD_PLOT
 
     #ifdef TESTS
+    assert(is_equal_float(30.05f, 30.f, .01f));
+    assert( ! is_equal_float(30.5f, 30.f, .01f));
+    assert(is_equal_fixed(30.05f * A, 30.f * A, .01f * A));
+    assert( ! is_equal_fixed(30.5f * A, 30.f * A, .01f * A));
+
     // Test basic THD calculation from signal.
     {
-        int test_signal[T] = {0};
-        int test_coeffs[T/4] = {714, 434, 887, 133, -95, 556, 34, -405};
+        fixed_t test_signal[T] = {0};
+        fixed_t test_coeffs[T/4] = {714, 434, 887, 133, -95, 556, 34, -405};
         size_t coeffs_length = 8;
         for (size_t k = 0; k < coeffs_length; ++k)
             for (size_t t = 0; t < T; ++t)
@@ -118,7 +154,7 @@ int main(void)
 
         float thd_from_coeffs = coeffs_thd(coeffs_length, test_coeffs);
         float thd_from_signal = x_thd(test_signal);
-        if (fabsf(thd_from_coeffs - thd_from_signal) > .001f) {
+        if ( ! is_equal_float(thd_from_coeffs, thd_from_signal, .01f)) {
             fprintf(stderr, "Test signal THD calculation [FAILED]\n");
             fprintf(stderr, "Expected %g\n", thd_from_coeffs);
             fprintf(stderr, "Got      %g\n", thd_from_signal);
@@ -127,18 +163,18 @@ int main(void)
         }
     }
 
-    int blunter_mem[BASE + 1 + BASE];
-    int* blunter = blunter_mem + BASE;
+    fixed_t blunter_mem[BASE + 1 + BASE];
+    fixed_t* blunter = blunter_mem + BASE;
     for (int i = -BASE; i <= BASE; ++i) {
         double x = (i+.5) / BASE;
         blunter[i] = (2.*x - fabs(x)*x) * (1 << FIXED_WIDTH);
     }
+    float thd_closed_form = blunter_thd(T/4 - SKIP);
 
     // Test clipper function THD calculation.
     {
-        float thd_closed_form = blunter_thd(T/4 - SKIP);
-        float thd_measured    = f_thd(blunter, 1.f);
-        if (fabsf(thd_closed_form - thd_measured) > .001f) {
+        float thd_measured = f_thd(blunter, 1.f);
+        if ( ! is_equal_float(thd_closed_form, thd_measured, .01f)) {
             fprintf(stderr, "Blunter THD calculation [FAILED]\n");
             fprintf(stderr, "Expected %g\n", thd_closed_form);
             fprintf(stderr, "Got      %g\n", thd_measured);
@@ -146,9 +182,36 @@ int main(void)
         }
     }
 
-    // Test and bench input gain normalization
+    // Test input gain normalization
     {
+        fixed_t blunter2_mem[BASE + 1 + BASE];
+        fixed_t* blunter2 = blunter2_mem + BASE;
+        double embedded_input_gain = 1.7; // to be normalized away
+        for (int i = -BASE; i <= BASE; ++i) {
+            double x = embedded_input_gain * (i+.5) / BASE;
+            if (fabs(x) < 1.)
+                blunter2[i] = (2.*x - fabs(x)*x) * (1 << FIXED_WIDTH);
+            else if (x < 0)
+                blunter2[i] = -(1 << FIXED_WIDTH);
+            else
+                blunter2[i] = 1 << FIXED_WIDTH;
+        }
+
+        float thd_measured = f_thd(blunter2, 1.f);
+        assert(thd_measured > (embedded_input_gain - .1f) * thd_closed_form);
+        float input_gain = normalized_input_gain(blunter2);
+        thd_measured = f_thd(blunter2, input_gain);
+        if ( ! is_equal_float(thd_closed_form, thd_measured, .01f)) {
+            fprintf(stderr, "Input gain normalization [FAILED]\n");
+            fprintf(stderr, "Expected in gain %g\n", 1.f/embedded_input_gain);
+            fprintf(stderr, "Got in gain      %g\n", input_gain);
+            fprintf(stderr, "Expected THD     %g\n", thd_closed_form);
+            fprintf(stderr, "Got THD          %g\n", thd_measured);
+            exit(EXIT_FAILURE);
+        }
     }
+
     puts("THD tests [PASSED]");
+    printf("Blunter THD: %g\n", blunter_thd(T/4)); // 0.0222559f
     #endif // TESTS
 }

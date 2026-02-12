@@ -8,6 +8,8 @@
 #include <string.h>
 #include <assert.h>
 
+typedef int fixed_t;
+
 // TODO names are starting to get confusing, fix this!
 
 #ifndef BASE // defined in Makefile, this is here just for clangd.
@@ -82,10 +84,10 @@ static inline bool f_next(size_t* f_state, int f[1 + BASE])
 #define IIR_POLES 4
 
 // Scale to fixed width and smooth out kinks with IIR filter.
-static inline void f_preprocess(int f_out[restrict], const int f_in[restrict BASE])
+static inline void f_preprocess(fixed_t f_out[restrict], const int f_in[restrict BASE])
 {
-    int f_right_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
-    int* f_right = f_right_mem + IIR_TAIL_LENGTH + BASE;
+    fixed_t f_right_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
+    fixed_t* f_right = f_right_mem + IIR_TAIL_LENGTH + BASE;
 
     for (size_t i = 0; i <= BASE; ++i) // copy and scale positive side
         f_out[i] = f_right[i] = f_in[i] << FIXED_WIDTH;
@@ -109,4 +111,25 @@ static inline void f_preprocess(int f_out[restrict], const int f_in[restrict BAS
 
 // TODO float implementation of f_preprocess().
 
+// Compare floating point numbers with given precision.
+static inline bool is_equal_float(float a, float b, float max_relative_diff)
+{
+    float fabsf(float);
+    float fmaxf(float, float);
+    a = fabsf(a);
+    b = fabsf(b);
+    return fabsf(a - b) < max_relative_diff * fmaxf(a, b);
+}
+
+// Compare fixed point numbers with given precision.
+static inline bool is_equal_fixed(fixed_t a, fixed_t b, fixed_t max_relative_diff)
+{
+    if (a < 0)
+        a = -a;
+    if (b < 0)
+        b = -b;
+    fixed_t abs_ab = a - b < 0 ? b - a : a - b;
+    fixed_t max_ab = a > b ? a : b;
+    return (int64_t)abs_ab << FIXED_WIDTH < (int64_t)max_relative_diff * max_ab;
+}
 #endif // SHARED_H_INCLUDED

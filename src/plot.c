@@ -27,8 +27,8 @@ int main(void)
     }
     #endif
 
-    int f_filtered_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
-    int* f_filtered = f_filtered_mem + IIR_TAIL_LENGTH + BASE;
+    fixed_t f_filtered_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
+    fixed_t* f_filtered = f_filtered_mem + IIR_TAIL_LENGTH + BASE;
     f_preprocess(f_filtered, f);
 
     #ifndef SECOND_DERIVATIVE
