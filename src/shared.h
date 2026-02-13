@@ -29,6 +29,9 @@ typedef int fixed_t;
 // Amplitude of sines or fixed width precision.
 #define A (1<<FIXED_WIDTH)
 
+// We'll normalize agains Blunter's THD by default.
+#define THD_NORMALIZED 0.0222559f
+
 // Initialize clipper function generator.
 static inline void f_init(int f[1 + BASE])
 {
@@ -110,7 +113,25 @@ static inline void f_filter(fixed_t f_out[restrict], const int f_in[restrict BAS
     }
 }
 
-// Compare floating point numbers with given precision.
+// Call f with x with normalized scale, so f_call(f, 1.f) == f[BASE]. In between
+// index values will be linearly interpolated. Link with -lm if used.
+static inline fixed_t f_call(const fixed_t f[restrict], float x)
+{
+    float floorf(float);
+    float bx = BASE*x;
+    float floor = floorf(bx);
+    float fract = bx - floor;
+    int i = floor;
+    if (i >= BASE)
+        return f[BASE];
+    else if (i < -BASE)
+        return f[-BASE];
+    else
+        return (1.f-fract)*f[i] + fract*f[i+1];
+}
+
+
+// Compare floating point numbers with given precision. Link with -lm if used.
 static inline bool is_equal_float(float a, float b, float max_relative_diff)
 {
     float fabsf(float);
@@ -145,5 +166,9 @@ __attribute__((always_inline)) static inline double time_diff(__uint128_t start_
 {
     return (double)(uint64_t)(time_begin() - start_ns) / 1000000000.;
 }
+
+// Returns an input gain such that f will have a THD of THD_NORMALIZED.
+// Compile with thd.c if used. Link with -lm if used.
+float normalized_input_gain(const fixed_t f[1 + BASE]);
 
 #endif // SHARED_H_INCLUDED

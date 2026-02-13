@@ -4,12 +4,9 @@
 
 #define TESTS // for THD unit tests
 // #define THD_PLOT // generate CSV describing THD as a function of input gain
-#define BENCH // benchmark
+// #define BENCH // benchmark
 
 #define SKIP 2 // last harmonics are likely to not contribute much.
-
-// We'll normalize agains Blunter's THD by default.
-#define THD_NORMALIZED 0.0222559f
 
 #ifdef BENCH
 size_t g_dft_coeff_calculation_count = 0;
@@ -21,6 +18,7 @@ float coeffs_thd(size_t coeffs_length, const fixed_t coeffs[T/4])
     int64_t sum = 0;
     for (size_t i = 1; i < coeffs_length; ++i)
         sum += (int64_t)coeffs[i]*coeffs[i];
+
     if (sum == 0) // very unlikey, but possible for clippers with large linear
         sum = 1;  // region. Zero would cause integer zero division later.
 
@@ -54,18 +52,9 @@ float x_thd(const fixed_t x[T])
 float f_thd(const fixed_t f[restrict], float in_gain)
 {
     fixed_t x[T];
-    for (size_t t = 0; t < T; ++t) {
-        float sint = BASE*in_gain*sine[t];
-        float floor = floorf(sint);
-        float fract = sint - floor;
-        int i = floor;
-        if (i >= BASE)
-            x[t] = f[BASE];
-        else if (i < -BASE)
-            x[t] = f[-BASE];
-        else
-            x[t] = (1.f-fract)*f[i] + fract*f[i+1];
-    }
+    for (size_t t = 0; t < T; ++t)
+        x[t] = f_call(f, in_gain*sine[t]);
+
     return x_thd(x);
 }
 
@@ -129,9 +118,9 @@ float normalized_input_gain(const fixed_t f[1 + BASE])
     return x2;
 }
 
+#ifdef THD_MAIN
 int main(void)
 {
-
     #ifdef BENCH
     {
         int f_gen[1 + BASE];
@@ -267,3 +256,4 @@ int main(void)
     printf("Blunter THD: %g\n", blunter_thd(T/4)); // 0.0222559f
     #endif // TESTS
 }
+#endif // THD_MAIN

@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -ggdb3 -gdwarf -DBASE=$(BASE) -march=native
+CFLAGS = -Wall -Wextra -ggdb3 -gdwarf -DBASE=$(BASE) -march=native -fno-math-errno
 # Remember to not add -O3 by default, we may want to plot in Seergdb.
 
 help:
@@ -9,7 +9,8 @@ help:
 	@echo '  sines BASE=<base>                   Generate a table of sines of multiples of frequencies.'
 	@echo '  plot BASE=<base> N=<idx>            Generate CSV of a function of given BASE and index N.'
 	@echo '  plot BASE=<base> CUSTOM=<function>  Generate CSV of a custom C expression e.g. x*x.'
-	@echo '  test_thd BASE=<base>                Test THD calculation.
+	@echo '  test_thd BASE=<base>                Test THD calculation.'
+	@echo '  test_cdf BASE=<base>                Test CDF calculation.'
 	@echo '  clean                               Delete build artifacts.'
 	@exit 1
 
@@ -35,7 +36,12 @@ plot:
 test_thd:
 	@mkdir -p build
 	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
-	@$(CC) -o build/testthd $(CFLAGS) -O3 -lm src/thd.c && ./build/testthd
+	@$(CC) -o build/testthd $(CFLAGS) -DTHD_MAIN -O3 -lm src/thd.c && ./build/testthd
+
+test_cdf:
+	@mkdir -p build
+	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
+	@$(CC) -o build/testcdf $(CFLAGS) -lm src/thd.c src/cdf.c && ./build/testcdf
 
 clean:
 	rm -rf build
