@@ -41,7 +41,12 @@ test_thd:
 test_cdf:
 	@mkdir -p build
 	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
-	@$(CC) -o build/testcdf $(CFLAGS) -lm src/thd.c src/cdf.c && ./build/testcdf
+	@$(CC) -o build/testcdf $(CFLAGS) -DCDF_MAIN -lm src/thd.c src/cdf.c && ./build/testcdf
+
+test_rms:
+	@mkdir -p build
+	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
+	@$(CC) -o build/testrms $(CFLAGS) -lm src/thd.c src/cdf.c src/rms.c && ./build/testrms
 
 clean:
 	rm -rf build

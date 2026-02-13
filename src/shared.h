@@ -114,7 +114,7 @@ static inline void f_filter(fixed_t f_out[restrict], const int f_in[restrict BAS
 }
 
 // Call f with x with normalized scale, so f_call(f, 1.f) == f[BASE]. In between
-// index values will be linearly interpolated. Link with -lm if used.
+// index values will be linearly interpolated.
 static inline fixed_t f_call(const fixed_t f[restrict], float x)
 {
     float floorf(float);
@@ -131,7 +131,7 @@ static inline fixed_t f_call(const fixed_t f[restrict], float x)
 }
 
 
-// Compare floating point numbers with given precision. Link with -lm if used.
+// Compare floating point numbers with given precision.
 static inline bool is_equal_float(float a, float b, float max_relative_diff)
 {
     float fabsf(float);
@@ -167,8 +167,26 @@ __attribute__((always_inline)) static inline double time_diff(__uint128_t start_
     return (double)(uint64_t)(time_begin() - start_ns) / 1000000000.;
 }
 
-// Returns an input gain such that f will have a THD of THD_NORMALIZED.
-// Compile with thd.c if used. Link with -lm if used.
+// The quantile function of a Gaussian. p should be in range (0, 1).
+float probitf(float p);
+
+// Returns an input gain such that passing sine to f will yield a THD of
+// THD_NORMALIZED. Compile with thd.c.
 float normalized_input_gain(const fixed_t f[1 + BASE]);
+
+// Returns an output gain such that passing Gaussian noise to f will yield some
+// normalized RMS value.
+static inline float normalized_output_gain(const fixed_t f[1 + BASE], float input_gain)
+{
+    float sqrtf(float);
+    int64_t sum = 0; // of squares
+    const float dt = .5f/BASE;
+    for (float t = dt; t < 1.f; t += dt) {
+        int64_t x = f_call(f, input_gain*probitf(t));
+        sum += x*x;
+    }
+    sum >>= FIXED_WIDTH;
+    return 1.f / sqrtf(dt*(float)sum);
+}
 
 #endif // SHARED_H_INCLUDED

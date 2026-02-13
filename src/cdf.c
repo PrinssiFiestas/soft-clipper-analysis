@@ -2,50 +2,6 @@
 #include <inttypes.h>
 #include <math.h>
 
-float normalized_output_gain(const fixed_t f[1 + BASE], float input_gain);
-// TODO implementation
-
-// Random number generator.
-typedef struct rng
-{
-    uint64_t state;
-    uint64_t inc;
-} RNG;
-
-// Create initialized random number state.
-RNG rng_state(uint64_t init_state, uint64_t stream_id)
-{
-    uint32_t rng_next(RNG*);
-    RNG rng = {.inc = (stream_id << 1u) | 1u };
-    rng_next(&rng);
-    rng.state += init_state;
-    rng_next(&rng);
-    return rng;
-}
-
-// Next random integer number with uniform distribution.
-uint32_t rng_next(RNG* rng)
-{
-    uint64_t oldstate = rng->state;
-    rng->state = oldstate * 6364136223846793005ULL + rng->inc;
-    uint32_t xorshifted = (uint32_t)(((oldstate >> 18u) ^ oldstate) >> 27u);
-    uint32_t rot = (uint32_t)(oldstate >> 59u);
-    return (xorshifted >> rot) | (xorshifted << ((0-rot) & 31));
-}
-
-// Next random floating point number with uniform distribution of range [0, 1).
-double rng_next_float(RNG* rng)
-{
-    return ldexp(rng_next(rng), -32);
-}
-
-double rng_gaussian(RNG* rng, float σ)
-{
-    double u1 = rng_next_float(rng);
-    double u2 = rng_next_float(rng);
-    return σ * sqrt(-2.*log(u1)) * cos(2.*M_PI*u2);
-}
-
 // https://stackoverflow.com/questions/27229371/inverse-error-function-in-c
 // compute inverse error functions with maximum error of 2.35793 ulp
 float erfinvf(float a)
@@ -116,14 +72,12 @@ float my_logf(float a)
     return r;
 }
 
-float probitf(float p) { return sqrtf(2.f) * erfinvf(2.f*p - 1); }
-
-void f_histogram(int hg[restrict], const int f[restrict])
+float probitf(float p)
 {
-    int x[T];
-    (void)x; (void)hg; (void)f; // TODO
+    return sqrtf(2.f) * erfinvf(2.f*p - 1);
 }
 
+#ifdef CDF_MAIN
 int main(void)
 {
     int hg_gaussian_mem[BASE + 1 + BASE] = {0};
@@ -133,19 +87,6 @@ int main(void)
         double y = (1./sqrt(2.*M_PI)) * exp(-x*x/2);
         hg_gaussian[i] = floor(BASE*y + .5);
     }
-
-    // Turns out that using noise is both slow and inaccurate, so useless...
-    #if 0
-    RNG rng = rng_state(time(NULL), (uintptr_t)&rng);
-    int hg_gaussian_noise_mem[BASE + 1 + BASE] = {0};
-    int* hg_gaussian_noise = hg_gaussian_noise_mem + BASE;
-    for (size_t n = 0; n < (1lu << 16); ++n) {
-        int i = floor(BASE*rng_gaussian(&rng, 1.f) + .5);
-        if (abs(i) > BASE)
-            continue;
-        hg_gaussian_noise[i]++;
-    }
-    #endif
 
     int hg_from_probit_mem[BASE + 1 + BASE] = {0};
     int* hg_from_probit = hg_from_probit_mem + BASE;
@@ -166,3 +107,4 @@ int main(void)
             hg_gaussian[0]*hg_from_probit[i] - hg_from_probit[0]*hg_gaussian[i]);
     #endif // TEST_PROBIT
 }
+#endif // CDF_MAIN
