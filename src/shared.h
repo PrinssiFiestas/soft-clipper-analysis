@@ -52,8 +52,8 @@ static inline void f_print(const int f[1 + BASE])
     puts("]");
 }
 
-// Next function from function sequence. f_state should be initialized to one.
-// f should be initialized using f_init().
+// Next function from function sequence. f_state should be initialized to one or
+// zero. f should be initialized using f_init().
 static inline bool f_next(size_t* f_state, int f[1 + BASE])
 {
     size_t* i = f_state;
@@ -176,7 +176,7 @@ float normalized_input_gain(const fixed_t f[1 + BASE]);
 
 // Returns an output gain such that passing Gaussian noise to f will yield some
 // normalized RMS value.
-static inline float normalized_output_gain(const fixed_t f[1 + BASE], float input_gain)
+static inline float normalized_output_gain(const fixed_t f[restrict], float input_gain)
 {
     float sqrtf(float);
     int64_t sum = 0; // of squares

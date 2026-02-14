@@ -37,6 +37,7 @@ double rng_next_float(RNG* rng)
     return ldexp(rng_next(rng), -32);
 }
 
+// Next random floating point number with Gaussian distribution of range (∞, ∞).
 double rng_gaussian(RNG* rng)
 {
     double u1 = rng_next_float(rng);
@@ -61,7 +62,7 @@ int main(void)
         double x = (i+.5) / BASE;
         blunter[i]      = A * (2.*x - fabs(x)*x);
         hard_clipper[i] = A * (fabs(x) < .5 ? x : .5*(x>0?1:-1));
-        logistic[i]     = A * (14. / (1. + exp(-3.*x)) - 1.);
+        logistic[i]     = A * (2. / (1. + exp(-3.*x)) - 1.);
     }
 
     float blunter_input_gain       = normalized_input_gain(blunter);

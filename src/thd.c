@@ -6,10 +6,12 @@
 // #define THD_PLOT // generate CSV describing THD as a function of input gain
 // #define BENCH // benchmark
 
-#define SKIP 2 // last harmonics are likely to not contribute much.
+#define SKIP 2 // harmonics close to Nyquist are likely to be dominated by noise.
 
 #ifdef BENCH
 size_t g_dft_coeff_calculation_count = 0;
+size_t g_max_secant_iterations = 0;
+size_t g_total_secant_iterations = 0;
 #endif
 
 // Calculates squared THD from harmonics' amplitudes.
@@ -74,6 +76,7 @@ float blunter_thd(size_t n_harmonics)
 // Returns an input gain such that f_thd(f, input_gain) ≈ THD_NORMALIZED.
 float normalized_input_gain(const fixed_t f[1 + BASE])
 {
+
     // Plotting many clipper's THD's as functions of input gains showed that
     // most clippers have close to zero THD when x < 0.3f. Same plots revealed
     // that the average of x == .6f got same THD as the Blunter's THD. So we
@@ -97,16 +100,19 @@ float normalized_input_gain(const fixed_t f[1 + BASE])
     // We have two data points now, use secant method to find final result fast.
     float x2 = x1;
     float y2 = y1;
+    size_t secant_iterations = 0;
     while (fabsf(y2) > .01f * THD_NORMALIZED) {
-        if (y1 == y0) {
-            // THD as a function of input gain is monotone, we should never get
-            // here in theory, but there is a miniscule chance that this could
-            // happen due to noise. This would crash f_thd(), which would be
-            // really unfortunate after hours and hours of number crunching.
+        secant_iterations++;
+        #ifdef BENCH
+        if (secant_iterations > g_max_secant_iterations)
+            g_max_secant_iterations = secant_iterations;
+        g_total_secant_iterations++;
+        #endif
+        if (secant_iterations > 10 || y1 == y0) {
             if (y2 > 0.f) // returning unfair normalization is ok.
                 return x2;
-            else // return value that discards f.
-                return INFINITY; // TODO can this cause problems down the line?
+            else // return high value that discards f.
+                return 1e10;
         }
         x2 = x1 - y1 * (x1 - x0) / (y1 - y0);
         y2 = f_thd(f, x2) - THD_NORMALIZED;
@@ -133,7 +139,8 @@ int main(void)
         __uint128_t t_thd_total    = 0;
         float thd_dummy = 0.f; // dummy variable to prevent compiler optimizing timing away.
 
-        for (size_t f_gen_state = 1; f_next(&f_gen_state, f_gen); )
+        size_t count = 0;
+        for (size_t f_gen_state = 1; f_next(&f_gen_state, f_gen); ++count)
         {
             __uint128_t t_filter = time_begin();
             __asm__ __volatile__("":::"memory");
@@ -155,6 +162,9 @@ int main(void)
         printf("Filtering time: %g\n", (double)t_filter_total / 1000000000.);
         printf("THD time:       %g\n", (double)t_thd_total / 1000000000.);
         printf("DFT coefficients calculated %zu times.\n", g_dft_coeff_calculation_count);
+        printf("Max secant iterations:     %zu\n", g_max_secant_iterations);
+        printf("Average secant iterations: %g\n", (double)g_total_secant_iterations / count);
+        printf("Total secant iterations:   %zu\n", g_total_secant_iterations);
     }
     #endif
 
