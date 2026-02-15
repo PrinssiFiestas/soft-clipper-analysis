@@ -27,13 +27,13 @@ int main(void)
     }
     #endif
 
-    fixed_t f_filtered_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
-    fixed_t* f_filtered = f_filtered_mem + IIR_TAIL_LENGTH + BASE;
+    float f_filtered_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
+    float* f_filtered = f_filtered_mem + IIR_TAIL_LENGTH + BASE;
     f_filter(f_filtered, f);
 
     #ifndef SECOND_DERIVATIVE
     for (size_t i = 0; i < BASE; ++i)
-        printf("%zu, %i\n", i, f_filtered[i]);
+        printf("%zu, %f\n", i, f_filtered[i]);
     #endif
 
     for (int i = 0; i < BASE-1; ++i) // first derivative
@@ -45,6 +45,6 @@ int main(void)
 
     #ifdef SECOND_DERIVATIVE
     for (size_t i = 0; i < BASE; ++i)
-        printf("%zu, %i\n", i, f_filtered[i]);
+        printf("%zu, %f\n", i, f_filtered[i]);
     #endif
 }

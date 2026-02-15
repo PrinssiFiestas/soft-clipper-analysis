@@ -52,17 +52,17 @@ int main(void)
     for (size_t t = 0; t < T_NOISE; ++t)
         noise[t] = rng_gaussian(&rng);
 
-    fixed_t  blunter_mem[BASE + 1 + BASE];
-    fixed_t  hard_clipper_mem[BASE + 1 + BASE];
-    fixed_t  logistic_mem[BASE + 1 + BASE];
-    fixed_t* blunter      = blunter_mem      + BASE;
-    fixed_t* hard_clipper = hard_clipper_mem + BASE;
-    fixed_t* logistic     = logistic_mem     + BASE;
+    float  blunter_mem[BASE + 1 + BASE];
+    float  hard_clipper_mem[BASE + 1 + BASE];
+    float  logistic_mem[BASE + 1 + BASE];
+    float* blunter      = blunter_mem      + BASE;
+    float* hard_clipper = hard_clipper_mem + BASE;
+    float* logistic     = logistic_mem     + BASE;
     for (int i = -BASE; i <= BASE; ++i) {
         double x = (i+.5) / BASE;
-        blunter[i]      = A * (2.*x - fabs(x)*x);
-        hard_clipper[i] = A * (fabs(x) < .5 ? x : .5*(x>0?1:-1));
-        logistic[i]     = A * (2. / (1. + exp(-3.*x)) - 1.);
+        blunter[i]      = 2.*x - fabs(x)*x;
+        hard_clipper[i] = fabs(x) < .5 ? x : .5*(x>0?1:-1);
+        logistic[i]     = 2. / (1. + exp(-3.*x)) - 1.;
     }
 
     float blunter_input_gain       = normalized_input_gain(blunter);
@@ -88,7 +88,7 @@ int main(void)
     blunter_rms      = sqrtf(blunter_rms      / T_NOISE);
     hard_clipper_rms = sqrtf(hard_clipper_rms / T_NOISE);
     logistic_rms     = sqrtf(logistic_rms     / T_NOISE);
-    const float min_expected_rms = 10.f; // probably should be much bigger
+    const float min_expected_rms = 1.f; // probably should be much bigger
     assert(blunter_rms      > min_expected_rms);
     assert(hard_clipper_rms > min_expected_rms);
     assert(logistic_rms     > min_expected_rms);

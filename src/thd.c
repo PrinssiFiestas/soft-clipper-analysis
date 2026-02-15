@@ -51,11 +51,11 @@ float x_thd(const fixed_t x[T])
 }
 
 // Calculates squared THD of clipper using DFT
-float f_thd(const fixed_t f[restrict], float in_gain)
+float f_thd(const float f[restrict], float in_gain)
 {
     fixed_t x[T];
     for (size_t t = 0; t < T; ++t)
-        x[t] = f_call(f, in_gain*sine[t]);
+        x[t] = A*f_call(f, in_gain*sine[t]);
 
     return x_thd(x);
 }
@@ -74,7 +74,7 @@ float blunter_thd(size_t n_harmonics)
 }
 
 // Returns an input gain such that f_thd(f, input_gain) ≈ THD_NORMALIZED.
-float normalized_input_gain(const fixed_t f[1 + BASE])
+float normalized_input_gain(const float f[1 + BASE])
 {
 
     // Plotting many clipper's THD's as functions of input gains showed that
@@ -131,8 +131,8 @@ int main(void)
     {
         int f_gen[1 + BASE];
         f_init(f_gen);
-        fixed_t f_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
-        fixed_t* f = f_mem + IIR_TAIL_LENGTH + BASE;
+        float f_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
+        float* f = f_mem + IIR_TAIL_LENGTH + BASE;
 
         __uint128_t t_start = time_begin();
         __uint128_t t_filter_total = 0;
@@ -173,8 +173,8 @@ int main(void)
         int f_gen[1 + BASE];
         f_init(f_gen);
 
-        fixed_t func_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
-        fixed_t* f = func_mem + IIR_TAIL_LENGTH + BASE;
+        float func_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
+        float* f = func_mem + IIR_TAIL_LENGTH + BASE;
         size_t skip = 0;
 
         for (float input_gain = .0125f; input_gain <= 1.f; input_gain += .0125f) {
@@ -214,11 +214,11 @@ int main(void)
         }
     }
 
-    fixed_t blunter_mem[BASE + 1 + BASE];
-    fixed_t* blunter = blunter_mem + BASE;
+    float blunter_mem[BASE + 1 + BASE];
+    float* blunter = blunter_mem + BASE;
     for (int i = -BASE; i <= BASE; ++i) {
         double x = (i+.5) / BASE;
-        blunter[i] = (2.*x - fabs(x)*x) * (1 << FIXED_WIDTH);
+        blunter[i] = 2.*x - fabs(x)*x;
     }
     float thd_closed_form = blunter_thd(T/4 - SKIP);
 
@@ -235,17 +235,17 @@ int main(void)
 
     // Test input gain normalization
     {
-        fixed_t blunter2_mem[BASE + 1 + BASE];
-        fixed_t* blunter2 = blunter2_mem + BASE;
+        float blunter2_mem[BASE + 1 + BASE];
+        float* blunter2 = blunter2_mem + BASE;
         double embedded_input_gain = 1.7; // to be normalized away
         for (int i = -BASE; i <= BASE; ++i) {
             double x = embedded_input_gain * (i+.5) / BASE;
             if (fabs(x) < 1.)
-                blunter2[i] = (2.*x - fabs(x)*x) * (1 << FIXED_WIDTH);
+                blunter2[i] = 2.*x - fabs(x)*x;
             else if (x < 0)
-                blunter2[i] = -(1 << FIXED_WIDTH);
+                blunter2[i] = -1.f;
             else
-                blunter2[i] = 1 << FIXED_WIDTH;
+                blunter2[i] = 1.f;
         }
 
         float thd_measured = f_thd(blunter2, 1.f);

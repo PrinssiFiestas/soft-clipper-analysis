@@ -4,7 +4,7 @@ CFLAGS = -Wall -Wextra -ggdb3 -gdwarf -DBASE=$(BASE) -march=native -fno-math-err
 
 help:
 	@echo 'Targets'
-	@echo '  sequence BASE=<base>                 Print full sequence of functions of a given BASE.'
+	@echo '  sequence BASE=<base> [COUNT=<1|0>]   Print full sequence of functions of a given BASE.'
 	@echo '  test_sequence BASE=<base>            Count and test all possible sequences of a given base.'
 	@echo '  sines BASE=<base>                    Generate a table of sines of multiples of frequencies.'
 	@echo '  plot BASE=<base> N=<idx>             Generate CSV of a function of given BASE and index N.'
@@ -15,9 +15,13 @@ help:
 	@echo '  clean                                Delete build artifacts.'
 	@exit 1
 
+ifneq ($(COUNT),)
+DCOUNT = "-DCOUNT=$(COUNT)"
+endif
+
 sequence:
 	@mkdir -p build
-	@$(CC) -o build/sequence $(CFLAGS) -O3 src/sequence.c && ./build/sequence
+	@$(CC) -o build/sequence $(CFLAGS) DCOUNT -O3 src/sequence.c && ./build/sequence
 
 test_sequence:
 	@mkdir -p build
