@@ -1,6 +1,4 @@
 #include "shared.h"
-#include <limits.h>
-#include <math.h>
 
 // TODO X macro and #ifdef CUSTOM
 
@@ -132,22 +130,23 @@ int main(void)
             logistic_gen_filtered, logistic_gen_input_gain*x);
     }
 
-    const float plot_scale  = .3f; // TODO change to 1.f
+    const float plot_scale  = 1.f;
     float blunter_diff_sum  = 0.f;
     float arctan_diff_sum   = 0.f;
     float logistic_diff_sum = 0.f;
+    size_t start = 0; // TODO change to zero.
     printf("%i, %f\n", -1, plot_scale);
-    for (size_t i = 0; i < DIFF_BUF_LENGTH; ++i) {
+    for (size_t i = start; i < DIFF_BUF_LENGTH; ++i) {
         blunter_diff_sum += blunter_diff_buf[i];
         printf("%zu, %f\n", i, blunter_diff_buf[i]);
     }
     printf("%i, %f\n", DIFF_BUF_LENGTH, blunter_diff_sum);
-    for (size_t i = 0; i < DIFF_BUF_LENGTH; ++i) {
+    for (size_t i = start; i < DIFF_BUF_LENGTH; ++i) {
         arctan_diff_sum += arctan_diff_buf[i];
         printf("%zu, %f\n", i, arctan_diff_buf[i]);
     }
     printf("%i, %f\n", DIFF_BUF_LENGTH, arctan_diff_sum);
-    for (size_t i = 0; i < DIFF_BUF_LENGTH; ++i) {
+    for (size_t i = start; i < DIFF_BUF_LENGTH; ++i) {
         logistic_diff_sum += logistic_diff_buf[i];
         printf("%zu, %f\n", i, logistic_diff_buf[i]);
     }

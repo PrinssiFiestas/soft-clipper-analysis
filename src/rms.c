@@ -1,5 +1,4 @@
 #include "shared.h"
-#include <math.h>
 
 #define T_NOISE (1 << 16)
 

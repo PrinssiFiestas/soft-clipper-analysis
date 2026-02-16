@@ -1,6 +1,5 @@
 #include "shared.h"
 #include "../build/sines.c"
-#include <math.h>
 
 #define TESTS // for THD unit tests
 // #define THD_PLOT // generate CSV describing THD as a function of input gain

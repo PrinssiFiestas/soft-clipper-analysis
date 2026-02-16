@@ -1,7 +1,6 @@
 // Metaprogram to precalculate sinusoids of odd harmonics.
 
 #include "shared.h"
-#include <math.h>
 
 int main(void)
 {

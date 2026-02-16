@@ -7,6 +7,8 @@
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
+#include <limits.h>
+#include <math.h>
 #include <assert.h>
 
 // Fixed point type.
@@ -40,15 +42,15 @@ typedef int fixed_t;
 
 // Filtering makes the edges of the function go crazy, this is length of
 // extrapolation at the edges.
-#define IIR_TAIL_LENGTH (IIR_POLES << 2)
+#define IIR_TAIL_LENGTH 8
 
 // Both of these increase smoothing. IIR_INTENSITY also lowers precision, so
 // shouldn't be too high. Higher IIR_POLES is more expensive, also should be
 // modest. More smoothing, better quality second derivative, but too much
 // smoothing make all functions the same.
-#define IIR_INTENSITY 3
-#define IIR_POLES 1
-// Good combinations: (1, 3), (3, 1)
+#define IIR_INTENSITY 1
+#define IIR_POLES 3
+// Good combinations: (1, 3)
 
 // Initialize clipper function generator.
 static inline void f_init(int f[1 + BASE])
@@ -139,7 +141,7 @@ static inline void f_filter(float f_out[restrict], const int f_in[restrict BASE]
         const float b = 1.f - a;
         for (int i = 1 + BASE + IIR_TAIL_LENGTH - 2; i >= -BASE - IIR_TAIL_LENGTH; --i)
             f_right[i] = a*f_right[i] + b*f_right[i + 1];
-        for (int i = -1 - BASE - IIR_TAIL_LENGTH + 1; i <= BASE + IIR_TAIL_LENGTH; ++i)
+        for (int i = -1 - BASE - IIR_TAIL_LENGTH + 2; i <= BASE + IIR_TAIL_LENGTH; ++i)
             f_out[i] = a*f_out[i] + b*f_out[i - 1];
     }
     // Combine for zero phase
@@ -148,28 +150,50 @@ static inline void f_filter(float f_out[restrict], const int f_in[restrict BASE]
 }
 
 // Call f with x with normalized scale, so f_call(f, 1.f) == f[BASE]. In between
-// index values will be linearly interpolated.
+// index values will be linearly interpolated, out of bounds values will be
+// quadratically extrapolated.
 static inline float f_call(const float f[restrict], float x)
 {
-    float floorf(float);
     float bx = BASE*x;
     float floor = floorf(bx);
     float fract = bx - floor;
-    int i = floor;
-    if (i >= BASE)
-        return f[BASE];
-    else if (i < -BASE)
-        return f[-BASE];
-    else
+    int i = bx > INT_MAX ? INT_MAX : bx < INT_MIN ? INT_MIN : floor;
+
+    if (-BASE <= i && i < BASE) // interpolate
         return (1.f-fract)*f[i] + fract*f[i+1];
+    // else extrapolate
+
+    float d1 = f[BASE] - f[BASE - 1];            // first derivative
+    float d2 = d1 - (f[BASE - 1] - f[BASE - 2]); // second derivative
+
+    if (d1 <= 0.f)
+        return i >= BASE ? f[BASE] : f[-BASE];
+
+    // Quadratic polynomial P(x) = a*x^2 + b*x + c. Coefficients a and b can be
+    // solved from derivatives P''(BASE) = 2*a = d2
+    // and P'(BASE) = 2*a*BASE + b = d1. c can be solved from P(BASE) = f(BASE).
+    float a = .5f*d2;
+    float b = d1 - 2.f*a*(BASE-1.f);
+    float c = f[BASE] - a*BASE*BASE - b*BASE;
+
+    if (a == 0.f) // avoid zero division
+        return b*bx + c;
+
+    // Clamp at the top of P(x), which can be found using P'(x_max) = 0.
+    float absx = fabsf(bx);
+    float x_max = -b/(2.f*a);
+    if (absx >= x_max) {
+        float y = a*x_max*x_max + b*x_max + c;
+        return bx >= 0.f ? y : -y;
+    }
+    float y = a*absx*absx + b*absx + c;
+    return bx >= 0.f ? y : -y;
 }
 
 
 // Compare floating point numbers with given precision.
 static inline bool is_equal_float(float a, float b, float max_relative_diff)
 {
-    float fabsf(float);
-    float fmaxf(float, float);
     a = fabsf(a);
     b = fabsf(b);
     return fabsf(a - b) < max_relative_diff * fmaxf(a, b);
@@ -212,7 +236,6 @@ float normalized_input_gain(const float f[1 + BASE]);
 // normalized RMS value.
 static inline float normalized_output_gain(const float f[restrict], float input_gain)
 {
-    float sqrtf(float);
     float sum = 0; // of squares
     const float dt = .5f/BASE;
     for (float t = dt; t < 1.f; t += dt) {

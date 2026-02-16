@@ -1,6 +1,5 @@
 #include "shared.h"
 #include <inttypes.h>
-#include <math.h>
 
 // https://stackoverflow.com/questions/27229371/inverse-error-function-in-c
 // compute inverse error functions with maximum error of 2.35793 ulp
