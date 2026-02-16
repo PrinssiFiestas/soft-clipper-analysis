@@ -67,7 +67,10 @@ int main(void)
     printf("Took %g seconds to count sequence length of base %i.\n", t, BASE);
     printf("Sequence length: %zu\n", *count);
 
-    if ((intptr_t)cache_contents > 0)
-        sprintf(cache_contents, CACHE_STR "%zu\n", *count);
+    if ((intptr_t)cache_contents > 0) {
+        size_t contents_length = sprintf(cache_contents, CACHE_STR "%zu\n", *count);
+        msync(cache_contents, contents_length, MS_SYNC);
+        ftruncate(cache_fd, contents_length);
+    }
     #endif
 }
