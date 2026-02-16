@@ -18,6 +18,10 @@ typedef int fixed_t;
 #define BASE 48
 #endif
 
+#define STR(S) #S
+#define XSTR(S) STR(S)
+#define BASE_STR XSTR(BASE)
+
 // Number of samples. Should be at least 2*BASE to fit a full sinusoid.
 // Bigger makes DFT much more accurate, but clearly needs more processing time.
 // Does not need to be a power of two, we use DFT instead of FFT.
@@ -29,8 +33,10 @@ typedef int fixed_t;
 // Amplitude of sines or fixed width precision.
 #define A (1<<FIXED_WIDTH)
 
-// We'll normalize agains Blunter's THD by default.
+// We'll normalize against Blunter's THD by default.
+#ifndef THD_NORMALIZED
 #define THD_NORMALIZED 0.0222559f
+#endif
 
 // Filtering makes the edges of the function go crazy, this is length of
 // extrapolation at the edges.
@@ -94,11 +100,37 @@ static inline void f_filter(float f_out[restrict], const int f_in[restrict BASE]
     float f_right_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
     float* f_right = f_right_mem + IIR_TAIL_LENGTH + BASE;
 
-    for (size_t i = 0; i <= BASE; ++i) // copy positive side
+     // Copy positive side.
+    for (size_t i = 0; i <= BASE; ++i)
         f_out[i] = f_right[i] = f_in[i];
-    for (size_t i = BASE; i < 1 + BASE + IIR_TAIL_LENGTH; ++i) // extrapolate
-        f_out[i] = f_right[i] = f_out[BASE];
-    for (size_t i = 1; i < 1 + BASE + IIR_TAIL_LENGTH; ++i) // mirror negative side
+
+    // Find first and second derivative for better extrapolation.
+    float d1 = 0.f;
+    float d2 = 0.f;
+    for (int i1 = BASE - 1; i1 >= 0; --i1) {
+        if (f_in[i1] != f_in[BASE]) {
+            d1 = (float)(f_in[BASE] - f_in[i1]) / (BASE - i1);
+            for (int i2 = i1 - 1; i2 >= 0; --i2) {
+                if (f_in[i2] != f_in[i1]) {
+                    float _d2 = (float)(f_in[i1] - f_in[i2]) / (i1 - i2);
+                    d2 = (d1 -_d2) / (i1 - i2);
+                    break;
+                }
+            }
+            break;
+        }
+    }
+    float extra = f_out[BASE];
+    for (size_t i = BASE + 1; i < 1 + BASE + IIR_TAIL_LENGTH; ++i) { // extrapolate
+        extra += d1;
+        d1 += d2;
+        if (d1 < 0.f)
+            d1 = d2 = 0;
+        f_out[i] = f_right[i] = extra;
+    }
+
+    // Mirror negative side.
+    for (size_t i = 1; i < 1 + BASE + IIR_TAIL_LENGTH; ++i)
         f_out[-i] = f_right[-i] = -f_out[i];
 
     for (size_t k = 0; k < IIR_POLES; ++k) {

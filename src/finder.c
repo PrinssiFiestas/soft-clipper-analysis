@@ -58,19 +58,6 @@ int main(void)
     size_t f_gen_state = 1;
     f_init(f_gen);
 
-    #ifdef COUNT
-    __uint128_t t0 = time_begin();
-    __asm__ __volatile__("":::"memory");
-    size_t count = 0;
-    for (size_t f_gen_state = 1; f_next(&f_gen_state, f_gen); ++count)
-        ;
-    __asm__ __volatile__("":::"memory");
-    double time = time_diff(t0);
-    printf("Count: %zu\n", count);
-    printf("Time:  %g\n", time);
-    exit(0);
-    #endif // COUNT
-
     size_t index = 0;
     do { // find functions in generated sequences
         f_filter(f, f_gen);
@@ -145,7 +132,7 @@ int main(void)
             logistic_gen_filtered, logistic_gen_input_gain*x);
     }
 
-    const float plot_scale  = 1.f;
+    const float plot_scale  = .3f; // TODO change to 1.f
     float blunter_diff_sum  = 0.f;
     float arctan_diff_sum   = 0.f;
     float logistic_diff_sum = 0.f;

@@ -2,6 +2,22 @@ CC = gcc
 CFLAGS = -Wall -Wextra -ggdb3 -gdwarf -DBASE=$(BASE) -march=native -fno-math-errno
 # Remember to not add -O3 by default, we may want to plot in Seergdb.
 
+ifeq ($(BASE),)
+$(error Must pass BASE=<base> from command line.)
+endif
+
+ifneq ($(COUNT),)
+CFLAGS += "-DCOUNT=$(COUNT)"
+endif
+
+ifneq ($(THD),)
+CFLAGS += "-DTHD=$(THD)
+endif
+
+ifneq ($(CUSTOM),)
+CFLAGS += "-DCUSTOM=$(CUSTOM)"
+endif
+
 help:
 	@echo 'Targets'
 	@echo '  sequence BASE=<base> [COUNT=<1|0>]   Print full sequence of functions of a given BASE.'
@@ -15,13 +31,10 @@ help:
 	@echo '  clean                                Delete build artifacts.'
 	@exit 1
 
-ifneq ($(COUNT),)
-DCOUNT = "-DCOUNT=$(COUNT)"
-endif
 
 sequence:
 	@mkdir -p build
-	@$(CC) -o build/sequence $(CFLAGS) DCOUNT -O3 src/sequence.c && ./build/sequence
+	@$(CC) -o build/sequence $(CFLAGS) -O3 src/sequence.c && ./build/sequence
 
 test_sequence:
 	@mkdir -p build
@@ -31,9 +44,6 @@ sines:
 	@mkdir -p build
 	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis
 
-ifneq ($(CUSTOM),)
-DCUSTOM = "-DCUSTOM=$(CUSTOM)"
-endif
 plot:
 	@mkdir -p build
 	@$(CC) -o build/plot $(CFLAGS) $(DCUSTOM) -DN=$N src/plot.c && ./build/plot
