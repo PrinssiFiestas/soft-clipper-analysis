@@ -2,10 +2,6 @@ CC = gcc
 CFLAGS = -Wall -Wextra -ggdb3 -gdwarf -DBASE=$(BASE) -march=native -fno-math-errno
 # Remember to not add -O3 by default, we may want to plot in Seergdb.
 
-ifeq ($(BASE),)
-$(error Must pass BASE=<base> from command line.)
-endif
-
 ifneq ($(COUNT),)
 CFLAGS += "-DCOUNT=$(COUNT)"
 endif
@@ -30,7 +26,6 @@ help:
 	@echo '  find BASE=<base> [CUSTOM=<function>] Find differences of functions from generated ones.'
 	@echo '  clean                                Delete build artifacts.'
 	@exit 1
-
 
 sequence:
 	@mkdir -p build
@@ -66,7 +61,7 @@ test_rms:
 find:
 	@mkdir -p build
 	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
-	@$(CC) -o build/finder $(CFLAGS) -lm -O3 src/thd.c src/cdf.c src/finder.c && ./build/finder
+	@$(CC) -o build/finder $(CFLAGS) -lm src/thd.c src/cdf.c src/finder.c src/interpolation.c && ./build/finder
 
 clean:
 	rm -rf build

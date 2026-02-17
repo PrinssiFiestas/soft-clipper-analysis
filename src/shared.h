@@ -154,14 +154,14 @@ static inline void f_filter(float f_out[restrict], const int f_in[restrict BASE]
 // quadratically extrapolated.
 static inline float f_call(const float f[restrict], float x)
 {
-    float bx = BASE*x;
-    float floor = floorf(bx);
-    float fract = bx - floor;
-    int i = bx > INT_MAX ? INT_MAX : bx < INT_MIN ? INT_MIN : floor;
+    float t = BASE*x;
+    float floor = floorf(t);
+    float fract = t - floor;
+    int i = floor > INT_MAX ? INT_MAX : floor < INT_MIN ? INT_MIN : floor;
 
     if (-BASE <= i && i < BASE) // interpolate
         return (1.f-fract)*f[i] + fract*f[i+1];
-    // else extrapolate
+    // else extrapolate.
 
     float d1 = f[BASE] - f[BASE - 1];            // first derivative
     float d2 = d1 - (f[BASE - 1] - f[BASE - 2]); // second derivative
@@ -177,19 +177,50 @@ static inline float f_call(const float f[restrict], float x)
     float c = f[BASE] - a*BASE*BASE - b*BASE;
 
     if (a == 0.f) // avoid zero division
-        return b*bx + c;
+        return b*t + c;
 
     // Clamp at the top of P(x), which can be found using P'(x_max) = 0.
-    float absx = fabsf(bx);
+    float absx = fabsf(t);
     float x_max = -b/(2.f*a);
     if (absx >= x_max) {
         float y = a*x_max*x_max + b*x_max + c;
-        return bx >= 0.f ? y : -y;
+        return t >= 0.f ? y : -y;
     }
     float y = a*absx*absx + b*absx + c;
-    return bx >= 0.f ? y : -y;
+    return t >= 0.f ? y : -y;
 }
 
+// Monotone cubic interpolation of values y0 and y1 using x as the interpolation
+// parameter (assumed to be [0..1]). A modification of hermite cubic interpolation
+// that prevents overshoots (preserves monoticity). In order to both maintain
+// monotonicity and C1 continuity, two neighbouring samples to the left of y0 and
+// the right of y1 are also necessary
+float interpolate_cubic_monotonic_heckbert(
+    float x,
+    float y_minus_1,
+    float y0,
+    float y1,
+    float y2);
+
+// Like f_call(), but uses monotone cubic Hermite interpolation for in between
+// values instead of linear interpolation.
+static inline float f_call_cubic(const float f[restrict], float x)
+{
+    if (fabsf(x) > BASE) // extrapolate
+        return f_call(f, x);
+    // else interpolate.
+
+    float t = BASE*x;
+    float floor = floorf(t);
+    float fract = t - floor;
+    int i = floor;
+    float y_minus_1 = -BASE <= i - 1 ? f[i - 1] : f_call(f, x - 1.f/BASE);
+    float y0 = f[i];
+    float y1 = i + 1 <= BASE ? f[i + 1] : f_call(f, x + 1.f/BASE);
+    float y2 = i + 2 <= BASE ? f[i + 2] : f_call(f, x + 1.f/BASE);
+    return interpolate_cubic_monotonic_heckbert(
+        fract, y_minus_1, y0, y1, y2);
+}
 
 // Compare floating point numbers with given precision.
 static inline bool is_equal_float(float a, float b, float max_relative_diff)
@@ -243,6 +274,44 @@ static inline float normalized_output_gain(const float f[restrict], float input_
         sum += x*x;
     }
     return 1.f / sqrtf(dt*sum);
+}
+
+// Returns hardness of clipping function. // TODO debug and confirmation.
+static inline float f_hardness(const float f[restrict], float out_gain, float in_gain)
+{
+    // Check if too much data out of bounds for reliable results. Experiment
+    // showed that most input gains are well below 1 anyway.
+    if (in_gain > 1.5f) // don't try to extrapolate.
+        return 1e20f; // discard
+
+    // If f_normalized(x) = out_gain*f(in_gain*x), then chain rule gives us
+    // f_normalized''(x) = out_gain*in_gain^2*f''(in_gain*x). We don't need to
+    // care about x, we just need the minimum value of the second derivative.
+    float min = 0.f;
+    for (size_t i = 0; i <= BASE; ++i) {
+        float d0 = f[i-0] - f[i-1];
+        float d1 = f[i+1] - f[i+0];
+        min = fminf(min, d1 - d0);
+    }
+    float hardness = -out_gain * in_gain * in_gain * min;
+    if (in_gain <= 1.f) // all data included, can trust result.
+        return hardness;
+    // else check if we have to extrapolate.
+
+    // We need some estimate if the min would fall. The problem is that our
+    // second derivative is already very noisy, so we'll average out some range
+    // at the end to estimate the trend.
+    float third_derivative_sum  = 0.f;
+    for (size_t i = 2*BASE/3; i <= BASE; ++i) {
+        float d0 = f[i-0] - f[i-1];
+        float d1 = f[i+1] - f[i+0];
+        float d2 = f[i+2] - f[i+1];
+        third_derivative_sum += (d2 - d1) - (d1 - d0);
+    }
+    if (third_derivative_sum >= 0.f) // min not likely to change, can trust result.
+        return hardness;
+    // else safer to just discard.
+    return 1e20f;
 }
 
 #endif // SHARED_H_INCLUDED

@@ -3,7 +3,8 @@
 
 #define TESTS // for THD unit tests
 // #define THD_PLOT // generate CSV describing THD as a function of input gain
-// #define BENCH // benchmark
+#define BENCH // benchmark
+// #define PLOT_IN_GAINS // to see that most in gains do fall well below 1.
 
 #define SKIP 2 // harmonics close to Nyquist are likely to be dominated by noise.
 
@@ -75,7 +76,6 @@ float blunter_thd(size_t n_harmonics)
 // Returns an input gain such that f_thd(f, input_gain) ≈ THD_NORMALIZED.
 float normalized_input_gain(const float f[1 + BASE])
 {
-
     // Plotting many clipper's THD's as functions of input gains showed that
     // most clippers have close to zero THD when x < 0.3f. Same plots revealed
     // that the average of x == .6f got same THD as the Blunter's THD. So we
@@ -97,6 +97,9 @@ float normalized_input_gain(const float f[1 + BASE])
     float y1 = f_thd(f, x1) - THD_NORMALIZED;
 
     // We have two data points now, use secant method to find final result fast.
+    // First secant iterations might throw x to negative root. This is fine
+    // because f_thd(f, -kx) == f_thd(f, kx), but the results will be confusing
+    // down the line, so return absolute value.
     float x2 = x1;
     float y2 = y1;
     size_t secant_iterations = 0;
@@ -109,7 +112,7 @@ float normalized_input_gain(const float f[1 + BASE])
         #endif
         if (secant_iterations > 10 || y1 == y0) {
             if (y2 > 0.f) // returning unfair normalization is ok.
-                return x2;
+                return fabsf(x2);
             else // return high value that discards f.
                 return 1e10;
         }
@@ -120,12 +123,27 @@ float normalized_input_gain(const float f[1 + BASE])
         y0 = y1;
         y1 = y2;
     }
-    return x2;
+    return fabsf(x2);
 }
 
 #ifdef THD_MAIN
 int main(void)
 {
+    #if PLOT_IN_GAINS
+    int f_gen[1 + BASE];
+    f_init(f_gen);
+    float f_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
+    float* f = f_mem + IIR_TAIL_LENGTH + BASE;
+    for (size_t i = 0, f_gen_state = 1; f_next(&f_gen_state, f_gen); ++i) {
+        f_filter(f, f_gen);
+        float in_gain = normalized_input_gain(f);
+        if (in_gain > 2.f)
+            in_gain = 2.f;
+        printf("%zu, %g\n", i, in_gain);
+    }
+    exit(0);
+    #endif // PLOT_IN_GAINS
+
     #ifdef BENCH
     {
         int f_gen[1 + BASE];
@@ -136,7 +154,8 @@ int main(void)
         __uint128_t t_start = time_begin();
         __uint128_t t_filter_total = 0;
         __uint128_t t_thd_total    = 0;
-        float thd_dummy = 0.f; // dummy variable to prevent compiler optimizing timing away.
+        float min_in_gain = INFINITY;
+        float max_in_gain = 0.f;
 
         size_t count = 0;
         for (size_t f_gen_state = 1; f_next(&f_gen_state, f_gen); ++count)
@@ -149,14 +168,17 @@ int main(void)
             __asm__ __volatile__("":::"memory");
             __uint128_t t_thd = time_begin();
             __asm__ __volatile__("":::"memory");
-            thd_dummy += normalized_input_gain(f);
+            float in_gain = normalized_input_gain(f);
             __asm__ __volatile__("":::"memory");
             t_thd_total += time_begin() - t_thd;
+            min_in_gain = fminf(min_in_gain, in_gain);
+            max_in_gain = fmaxf(max_in_gain, in_gain);
         }
         double time = time_diff(t_start);
 
-        printf("%f\r", thd_dummy);
         printf("Done benchmarking.\n");
+        printf("Min input gain: %g\n", min_in_gain);
+        printf("Max input gain: %g\n", max_in_gain);
         printf("Total time:     %g\n", time);
         printf("Filtering time: %g\n", (double)t_filter_total / 1000000000.);
         printf("THD time:       %g\n", (double)t_thd_total / 1000000000.);
