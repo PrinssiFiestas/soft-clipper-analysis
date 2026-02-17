@@ -208,11 +208,11 @@ int main(void)
     float logistic_normalized[1 + BASE];
     for (size_t i = 0; i < 1 + BASE; ++i) {
         float x = (float)i / (1 + BASE);
-        blunter_normalized[i] = blunter_gen_output_gain * f_call_cubic(
+        blunter_normalized[i] = blunter_gen_output_gain * f_call(
             blunter_gen_filtered, blunter_gen_input_gain*x);
-        arctan_normalized[i] = arctan_gen_output_gain * f_call_cubic(
+        arctan_normalized[i] = arctan_gen_output_gain * f_call(
             arctan_gen_filtered, arctan_gen_input_gain*x);
-        logistic_normalized[i] = logistic_gen_output_gain * f_call_cubic(
+        logistic_normalized[i] = logistic_gen_output_gain * f_call(
             logistic_gen_filtered, logistic_gen_input_gain*x);
     }
 
