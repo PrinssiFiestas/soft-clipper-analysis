@@ -28,6 +28,11 @@ help:
 	@echo '  clean                                 Delete build artifacts.'
 	@exit 1
 
+smoothest:
+	@mkdir -p build
+	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
+	@$(CC) -o build/smoothest $(CFLAGS) -lm -pthread src/thd.c src/cdf.c src/smoothest.c && ./build/smoothest
+
 sequence:
 	@mkdir -p build
 	@$(CC) -o build/sequence $(CFLAGS) -DSEQUENCE_MAIN -O3 src/sequence.c && ./build/sequence
@@ -64,10 +69,6 @@ find:
 	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
 	@$(CC) -o build/finder $(CFLAGS) -lm src/thd.c src/cdf.c src/finder.c && ./build/finder
 
-smoothest:
-	@mkdir -p build
-	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
-	@$(CC) -o build/smoothest $(CFLAGS) -lm src/thd.c src/cdf.c src/smoothest.c && ./build/smoothest
 
 clean:
 	rm -rf build

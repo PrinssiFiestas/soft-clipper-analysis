@@ -139,7 +139,7 @@ int main(void)
     float f_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
     float* f = f_mem + IIR_TAIL_LENGTH + BASE;
     int f_gen[1 + BASE];
-    size_t f_gen_state = 1;
+    uint32_t f_gen_state = 1;
     f_init(f_gen);
 
     size_t index = 0;

@@ -17,7 +17,7 @@ int main(void)
 
     #ifndef CUSTOM
     size_t count = 0;
-    for (size_t state = 1; count < N; ++count)
+    for (uint32_t state = 1; count < N; ++count)
         if ( ! f_next(&state, f))
             exit(!!fprintf(stderr, "N %i out of bounds. Max N: %zu\n", N, count));
     #else

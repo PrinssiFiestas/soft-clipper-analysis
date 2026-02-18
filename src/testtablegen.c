@@ -49,7 +49,7 @@ int main(void)
     int f_correct[1 + BASE];
     f_init(f_correct);
     f_init(f);
-    size_t f_state = 1;
+    uint32_t f_state = 1;
 
     printf("Testing... ");
     fflush(stdout);
@@ -61,8 +61,8 @@ int main(void)
 
     size_t one_percent = max_progress / 100;
     size_t progress = 0;
-    size_t progress_counter = 0;
-    size_t counter = 0;
+    uint64_t progress_counter = 0;
+    uint64_t counter = 0;
 
     signal(SIGINT,  set_signum);
     signal(SIGQUIT, set_signum);

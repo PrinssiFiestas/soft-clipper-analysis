@@ -27,7 +27,7 @@
 // Wait-free Single Producer Single Consumer type generic queue
 
 /** Generic SPSC queue type.*/
-#define LFQueue(T) T*
+#define LFQueue(T...) __typeof__(&(T){0})
 
 /** Create generic queue. C only.
  * @p buffer_length specifies how many elements of type @p T fit in @p buffer.

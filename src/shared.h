@@ -74,9 +74,9 @@ static inline void f_print(const int f[1 + BASE])
 
 // Next function from function sequence. f_state should be initialized to one or
 // zero. f should be initialized using f_init().
-static inline bool f_next(size_t* f_state, int f[1 + BASE])
+static inline bool f_next(uint32_t* f_state, int f[1 + BASE])
 {
-    size_t* i = f_state;
+    uint32_t* i = f_state;
     if (f[1] >= BASE)
         return false;
 
@@ -254,6 +254,47 @@ __attribute__((always_inline)) static inline __uint128_t time_begin()
 __attribute__((always_inline)) static inline double time_diff(__uint128_t start_ns)
 {
     return (double)(uint64_t)(time_begin() - start_ns) / 1000000000.;
+}
+
+#define TIME_STR_BUF_SIZE (sizeof"2147483647 years, 11 months, 29 days")
+
+// Used for rough time estimations, conversion not precise.
+static inline char* time_str(char buf[TIME_STR_BUF_SIZE], double t)
+{
+    if (isnan(t) || t < 0)
+        return NULL;
+    if (t/(60*60*24*30*12) > INT_MAX) {
+        sprintf(buf, "infinite years");
+        return buf;
+    }
+    int ts = fmod(t/(1),           60.);
+    int tm = fmod(t/(60),          60.);
+    int th = fmod(t/(60*60),       24.);
+    int td = fmod(t/(60*60*24),    30.);
+    int tM = fmod(t/(60*60*24*30), 12.);
+    int ty =      t/(60*60*24*30*12)   ;
+    if (t < 60)
+        sprintf(buf, "%g seconds", t);
+    else if (t < 60*60)
+        sprintf(buf, "%i minutes, %i seconds", tm, ts);
+    else if (t < 60*60*24)
+        sprintf(buf, "%i hours, %i minutes, %i seconds", th, tm, ts);
+    else if (t < 60*60*24*30)
+        sprintf(buf, "%i days, %i hours, %i minutes", td, th, tm);
+    else if (t < 60*60*24*30*12)
+        sprintf(buf, "%i months, %i days, %i hours", tM, td, th);
+    else
+        sprintf(buf, "%i years, %i months, %i days", ty, tM, td);
+    return buf;
+}
+
+// Stores current date to buf and returns it or returns NULL in case of failure.
+static inline char* get_date(char buf[70])
+{
+    time_t timer = time(NULL);
+    if (strftime(buf, 70, "%c", localtime(&timer)) > 0)
+        return buf;
+    return NULL;
 }
 
 // The quantile function of a Gaussian. p should be in range (0, 1).

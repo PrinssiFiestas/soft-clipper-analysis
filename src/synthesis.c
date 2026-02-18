@@ -4,6 +4,8 @@
 
 int main(void)
 {
+    puts("#include \"shared.h\"\n");
+
     printf("// Sine with frequency of 1/T.\n");
     printf("const float sine[%i] = {", T);
     for (int t = 0; t < T; ++t) {
@@ -15,7 +17,7 @@ int main(void)
     puts("\n};\n");
 
     printf("// Fixed point sines with frequencies of odd multiples of 1/T.\n");
-    printf("const int sines[%i][%i] = {\n", T/4, T);
+    printf("fixed_t sines[%i][%i] = {\n", T/4, T);
 
     for (int i = 0; i < T/4; ++i) {
         printf("    [ %i ] = {", i);

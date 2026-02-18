@@ -126,7 +126,7 @@ float normalized_input_gain(const float f[1 + BASE])
     return fabsf(x2);
 }
 
-#ifdef THD_MAIN
+#ifdef M_PI // THD_MAIN
 int main(void)
 {
     #if PLOT_IN_GAINS
@@ -134,7 +134,8 @@ int main(void)
     f_init(f_gen);
     float f_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
     float* f = f_mem + IIR_TAIL_LENGTH + BASE;
-    for (size_t i = 0, f_gen_state = 1; f_next(&f_gen_state, f_gen); ++i) {
+    uint64_t i = 0;
+    for (uint32_t f_gen_state = 1; f_next(&f_gen_state, f_gen); ++i) {
         f_filter(f, f_gen);
         float in_gain = normalized_input_gain(f);
         if (in_gain > 2.f)
@@ -157,8 +158,8 @@ int main(void)
         float min_in_gain = INFINITY;
         float max_in_gain = 0.f;
 
-        size_t count = 0;
-        for (size_t f_gen_state = 1; f_next(&f_gen_state, f_gen); ++count)
+        uint64_t count = 0;
+        for (uint32_t f_gen_state = 1; f_next(&f_gen_state, f_gen); ++count)
         {
             __uint128_t t_filter = time_begin();
             __asm__ __volatile__("":::"memory");
@@ -200,7 +201,7 @@ int main(void)
 
         for (float input_gain = .0125f; input_gain <= 1.f; input_gain += .0125f) {
             f_init(f_gen);
-            for (size_t f_gen_state = 1; f_next(&f_gen_state, f_gen); ) {
+            for (uint32_t f_gen_state = 1; f_next(&f_gen_state, f_gen); ) {
                 f_filter(f, f_gen);
                 if ((skip++ & ((1<<5)-1)) == 0)
                     printf("%g, %g\n", input_gain, f_thd(f, input_gain));
