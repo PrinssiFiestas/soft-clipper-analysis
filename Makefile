@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -ggdb3 -gdwarf -DBASE=$(BASE) -march=native -fno-math-errno
+CFLAGS = -Wall -Wextra -ggdb3 -gdwarf -Iinclude -DBASE=$(BASE) -march=native -fno-math-errno
 # Remember to not add -O3 by default, we may want to plot in Seergdb.
 
 ifneq ($(COUNT),)
@@ -25,6 +25,7 @@ help:
 	@echo '  test_thd BASE=<base>                 Test THD calculation.'
 	@echo '  test_cdf BASE=<base>                 Test CDF calculation.'
 	@echo '  find BASE=<base> [CUSTOM=<function>] Find differences of functions from generated ones.'
+	@echo '  shader BASE=<base>                   Check shader compilation errors and stringify shader.'
 	@echo '  clean                                Delete build artifacts.'
 	@exit 1
 
@@ -80,6 +81,10 @@ find:
 	@mkdir -p build
 	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
 	@$(CC) -o build/finder $(CFLAGS) -lm src/thd.c src/cdf.c src/finder.c && ./build/finder
+
+shader:
+	@mkdir -p build
+	@$(CC) -o build/shader $(CFLAGS) src/shader.c src/glad.c -lX11 -lGLX -lGL && ./build/shader
 
 clean:
 	rm -rf build
