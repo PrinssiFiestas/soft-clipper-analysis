@@ -339,7 +339,7 @@ static inline float normalized_output_gain(const float f[restrict], float input_
     return 1.f / sqrtf(dt*sum);
 }
 
-// Returns hardness of clipping function. // TODO debug and confirmation.
+// Returns hardness of clipping function.
 static inline float f_hardness(const float f[restrict], float out_gain, float in_gain)
 {
     // Check if too much data out of bounds for reliable results. Experiment

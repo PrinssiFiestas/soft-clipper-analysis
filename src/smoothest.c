@@ -6,18 +6,12 @@
 #include <unistd.h>
 #include <errno.h>
 
-// TODO probably remove lfc.h
-
-#ifndef NPROC // TODO put in Makefile
+#ifndef NPROC
 #define NPROC 8
-#else
-_Static_assert(NPROC == 12, "TODO delete this"); // TODO
 #endif
 
-#ifndef CACHE_LINE_SIZE // TODO check from Makefile?
+#ifndef CACHE_LINE_SIZE
 #define CACHE_LINE_SIZE 64
-#else
-_Static_assert(CACHE_LINE_SIZE == 64, "TODDO deleet this"); // TODO
 #endif
 
 typedef struct work
@@ -200,7 +194,6 @@ static void* do_work(void* worker_id)
         Work* result = &g_work[(uintptr_t)worker_id];
         result->f_hardness = 1e10f;
         Work work = *result;
-        assert(((work.f_index) & (WORK_SIZE-1)) == 0); // TODO remove this
 
         do { // work
             float f_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
