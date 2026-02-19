@@ -16,27 +16,34 @@ endif
 
 help:
 	@echo 'Targets'
-	@echo '  smoothest BASE<base> [PROC=<CPU|GPU>] Find the smoothest clipper with precision BASE.'
-	@echo '  sequence BASE=<base> [COUNT=<1|0>]    Print full sequence of functions of a given BASE.'
-	@echo '  test_sequence BASE=<base>             Count and test all possible sequences of a given base.'
-	@echo '  sines BASE=<base>                     Generate a table of sines of multiples of frequencies.'
-	@echo '  plot BASE=<base> N=<idx>              Generate CSV of a function of given BASE and index N.'
-	@echo '  plot BASE=<base> CUSTOM=<function>    Generate CSV of a custom C expression e.g. x*x.'
-	@echo '  test_thd BASE=<base>                  Test THD calculation.'
-	@echo '  test_cdf BASE=<base>                  Test CDF calculation.'
-	@echo '  find BASE=<base> [CUSTOM=<function>]  Find differences of functions from generated ones.'
-	@echo '  clean                                 Delete build artifacts.'
+	@echo '  smoothest BASE<base>                 Find the smoothest clipper with precision BASE.'
+	@echo '  sequence BASE=<base> [COUNT=<1|0>]   Print full sequence of functions of a given BASE.'
+	@echo '  test_sequence BASE=<base>            Count and test all possible sequences of a given base.'
+	@echo '  sines BASE=<base>                    Generate a table of sines of multiples of frequencies.'
+	@echo '  plot BASE=<base> N=<idx>             Generate CSV of a function of given BASE and index N.'
+	@echo '  plot BASE=<base> CUSTOM=<function>   Generate CSV of a custom C expression e.g. x*x.'
+	@echo '  test_thd BASE=<base>                 Test THD calculation.'
+	@echo '  test_cdf BASE=<base>                 Test CDF calculation.'
+	@echo '  find BASE=<base> [CUSTOM=<function>] Find differences of functions from generated ones.'
+	@echo '  clean                                Delete build artifacts.'
 	@exit 1
 
 NPROC = $(shell echo `nproc`)
-ifneq ($(NPROC),0)
+ifneq ($(NPROC),)
 CFLAGS += -DNPROC=$(NPROC)
 endif
+
+CACHE_LINE_SIZE = $(shell echo `getconf LEVEL1_DCACHE_LINESIZE`)
+ifneq ($(GETCONF),)
+CFLAGS += -NCACHE_LINE_SIZE=$(CACHE_LINE_SIZE)
+endif
+
+SMOOTHEST_SRCS = src/thd.c src/cdf.c src/smoothest.c src/sequence.c
 
 smoothest:
 	@mkdir -p build
 	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
-	@$(CC) -o build/smoothest $(CFLAGS) -lm -pthread src/thd.c src/cdf.c src/smoothest.c && ./build/smoothest
+	@$(CC) -o build/smoothest $(CFLAGS) -O3 -lm -pthread $(SMOOTHEST_SRCS) && ./build/smoothest
 
 sequence:
 	@mkdir -p build

@@ -10,10 +10,14 @@
 
 #ifndef NPROC // TODO put in Makefile
 #define NPROC 8
+#else
+_Static_assert(NPROC == 12, "TODO delete this"); // TODO
 #endif
 
 #ifndef CACHE_LINE_SIZE // TODO check from Makefile?
 #define CACHE_LINE_SIZE 64
+#else
+_Static_assert(CACHE_LINE_SIZE == 64, "TODDO deleet this"); // TODO
 #endif
 
 typedef struct work
@@ -101,7 +105,7 @@ int main(void)
     do { // generate work
         if ((f_index & (WORK_SIZE - 1)) == 0)
             dispatch_sleep_time += dispatch_work(f_index, f_state, f_gen);
-    } while (f_next(&f_state, f_gen));
+    } while (++f_index, f_next(&f_state, f_gen));
 
     g_work_done = true;
     for (size_t i = 0; i < sizeof thrds / sizeof thrds[0]; ++i)
@@ -114,8 +118,48 @@ int main(void)
         printf("Total time taken%s: %s\n",
                total_time < 60*60*24*30 ? "" : "(roughly)",
                time_buf);
-    printf("Dispatcher was asleep %g%% of total time.\n",
+    printf("Dispatcher was asleep %g%% of total time.\n\n",
            100. * ((double)dispatch_sleep_time/1000000000.) / total_time);
+
+    printf("Found smoothest function.\n");
+    printf("Smoothest function index: %llu\n", (unsigned long long)g_result.f_index);
+    printf("Smoothest function hardness: %g\n", g_result.f_hardness);
+
+    float f_result_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
+    float* f_result = f_result_mem + IIR_TAIL_LENGTH + BASE;
+    f_filter(f_result, g_result.f_gen);
+    float f_in_gain = normalized_input_gain(f_result);
+    float f_out_gain = normalized_output_gain(f_result, f_in_gain);
+
+    const char* result_csv_path = "smoothest" BASE_STR ".csv";
+    FILE* result_csv_file;
+    while ((result_csv_file = fopen(result_csv_path, "wb")) == NULL) {
+        fprintf(stderr, "Failed opening result file %s: %s\n", result_csv_path, strerror(errno));
+        printf("Trying to open %s in a second...\n", result_csv_path);
+        usleep(1000*1000);
+    }
+    bool no_error = true;
+    for (size_t i = 0; no_error && i <= BASE; ++i) {
+        float x = (float)i/BASE;
+        float y = f_out_gain * f_call(f_result, f_in_gain*x);
+        no_error = fprintf(result_csv_file, "%g, %g\n", x, y) > 0;
+    }
+    if (no_error)
+        printf("Result data succesfully written to %s\n", result_csv_path);
+    else
+        fprintf(stderr, "Failed writing result to %s: %s\n", result_csv_path, strerror(errno));
+
+    const char* result_bin_path = "smoothest" BASE_STR ".bin";
+    FILE* result_bin_file;
+    while ((result_bin_file = fopen(result_bin_path, "wb")) == NULL) {
+        fprintf(stderr, "Failed opening binary result file %s: %s\n", result_bin_path, strerror(errno));
+        printf("Trying to open %s in a second...\n", result_bin_path);
+        usleep(1000*1000);
+    }
+    if (fwrite(&g_result, sizeof g_result, 1, result_bin_file) == 1)
+        printf("Result binary data succesfully written to %s\n", result_bin_path);
+    else
+        fprintf(stderr, "Failed writing result binary to %s: %s\n", result_bin_path, strerror(errno));
 }
 
 static __uint128_t dispatch_work(
@@ -136,7 +180,9 @@ static __uint128_t dispatch_work(
     __uint128_t sleep_start = time_begin();
     usleep(1000);
     sleep_time += time_begin() - sleep_start;
-    goto try_dispatch;
+    if ( ! g_work_done)
+        goto try_dispatch;
+    return sleep_time;
 }
 
 static void* do_work(void* worker_id)
@@ -157,7 +203,8 @@ static void* do_work(void* worker_id)
         assert(((work.f_index) & (WORK_SIZE-1)) == 0); // TODO remove this
 
         do { // work
-            float f[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
+            float f_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
+            float* f = f_mem + IIR_TAIL_LENGTH + BASE;
             f_filter(f, work.f_gen);
             float in_gain  = normalized_input_gain(f);
             if (in_gain > MAX_IN_GAIN)
@@ -177,21 +224,29 @@ static void* do_work(void* worker_id)
 static void report_time_estimate(uint64_t progress_counter, uint64_t init_progress)
 {
     double time;
+    static double t;
+    static bool initialized;
     static __uint128_t last_call;
-    if (last_call > 0 && time_diff(last_call) < .01) // avoid repeated printing
+    if (last_call > 0 && time_diff(last_call) < .1) // avoid repeated printing
         return;
     if ((time = time_diff(g_total_time_start)) < 1.) // give time for initial messages
         return;
 
     if ( ! g_got_sequence_length) // paranoid double check
         return;
+    if ( ! initialized)
+        initialized = printf("\n\n");
 
     char animation[4][4] = {"   ", ".  ", ".. ", "..."};
     char buf[TIME_STR_BUF_SIZE];
     double progress = (double)progress_counter/(g_sequence_length - init_progress);
+    double smoothing = t == 0. ? -1. : .9; // bias up at beginning
+    if (progress > 0)
+        t = (1. - smoothing) * (time/progress - time) + smoothing * t;
+
     printf("\e[2A"); // cursor up
     printf("                                                                         \r");
-    printf("Estimated time remaining: %s\n", time_str(buf, time/progress));
+    printf("Estimated time remaining: %s\n", time_str(buf, t));
     printf("                                                                         \r");
     printf("Working%s %.2f%%\n", animation[(int)(3.*time) & 3], 100.*progress);
 

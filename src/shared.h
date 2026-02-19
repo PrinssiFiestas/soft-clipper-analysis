@@ -296,7 +296,7 @@ static inline char* time_str(char buf[TIME_STR_BUF_SIZE], double t)
     int tM = fmod(t/(60*60*24*30), 12.);
     int ty =      t/(60*60*24*30*12)   ;
     if (t < 60)
-        sprintf(buf, "%g seconds", t);
+        sprintf(buf, "%i seconds", ts);
     else if (t < 60*60)
         sprintf(buf, "%i minutes, %i seconds", tm, ts);
     else if (t < 60*60*24)
@@ -375,6 +375,28 @@ static inline float f_hardness(const float f[restrict], float out_gain, float in
         return hardness;
     // else safer to just discard.
     return 1e20f;
+}
+
+static float debug_buf1[1 + BASE];
+static float debug_buf2[1 + BASE];
+
+// Derivative to be inspected in debugger.
+__attribute__((unused)) static float* debug_derivative(size_t length, float f[])
+{
+    for (size_t i = 1; i < length; ++i)
+        debug_buf1[i] = (length) * (f[i] - f[i - 1]);
+    debug_buf1[0] = debug_buf1[1];
+    return debug_buf1;
+}
+
+// Second derivative to be inspected in debugger.
+__attribute__((unused)) static float* debug_derivative2(size_t length, float f[])
+{
+    debug_derivative(length, f);
+    for (size_t i = 1; i <= length; ++i)
+        debug_buf2[i] = length * (debug_buf1[i] - debug_buf1[i - 1]);
+    debug_buf2[0] = debug_buf2[1] = 0.f;
+    return debug_buf2;
 }
 
 #endif // SHARED_H_INCLUDED

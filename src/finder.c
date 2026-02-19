@@ -8,28 +8,6 @@
 #error CUSTOM not implemented yet, sorry.
 #endif
 
-static float debug_buf1[1 + BASE];
-static float debug_buf2[1 + BASE];
-
-// Derivative to be inspected in debugger.
-float* debug_derivative(size_t length, float f[])
-{
-    for (size_t i = 1; i < length; ++i)
-        debug_buf1[i] = (length) * (f[i] - f[i - 1]);
-    debug_buf1[0] = debug_buf1[1];
-    return debug_buf1;
-}
-
-// Second derivative to be inspected in debugger.
-float* debug_derivative2(size_t length, float f[])
-{
-    debug_derivative(length, f);
-    for (size_t i = 1; i <= length; ++i)
-        debug_buf2[i] = length * (debug_buf1[i] - debug_buf1[i - 1]);
-    debug_buf2[0] = debug_buf2[1] = 0.f;
-    return debug_buf2;
-}
-
 float* oversampled_derivative(
     float f_oversampled[restrict (IIR_TAIL_LENGTH + 1 + BASE) << OVERSAMPLE_POWER],
     float f_in[restrict])
