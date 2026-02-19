@@ -189,7 +189,7 @@ static void* do_work(void* worker_id)
             if (g_work_done)
                 return NULL;
             else
-                usleep(1000);
+                usleep(100);
 
         Work* result = &g_work[(uintptr_t)worker_id];
         result->f_hardness = 1e10f;
@@ -209,7 +209,7 @@ static void* do_work(void* worker_id)
         } while ((++work.f_index & (WORK_SIZE-1)) && f_next(&work.f_state, work.f_gen));
 
         *me = GOT_RESULT;
-    } // while ( ! g_work_done)
+    }
 
     return NULL;
 }
@@ -275,8 +275,7 @@ static void* collect_results(void*_backup_fd)
         }
     }
 
-    // TODO measure average work unit time to determine better sleep value
-    usleep(1000);
+    usleep(100);
     if ( ! g_work_done)
         goto try_collect_result;
 
