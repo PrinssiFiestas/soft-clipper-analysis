@@ -126,7 +126,7 @@ float normalized_input_gain(const float f[1 + BASE])
     return fabsf(x2);
 }
 
-#ifdef M_PI // THD_MAIN
+#ifdef THD_MAIN
 int main(void)
 {
     #if PLOT_IN_GAINS

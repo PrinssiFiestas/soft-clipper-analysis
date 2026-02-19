@@ -20,24 +20,6 @@ bool f_count_next(int f[1 + BASE])
     return false;
 }
 
-// Checks if function is increasing and it's derivative is decreasing.
-static inline bool f_valid(const int f[1 + BASE])
-{
-    bool value_increasing = true;
-    bool diff_decreasing  = true;
-    int  diff = f[1];
-
-    for (size_t i = 1; i < 1 + BASE; ++i) {
-        value_increasing = f[i] >= f[i-1];
-        diff_decreasing  = f[i] - f[i-1] <= diff;
-        if (!value_increasing || !diff_decreasing)
-            return false;
-        diff = f[i] - f[i-1];
-    }
-
-    return true;
-}
-
 int main(void)
 {
     if (BASE > 14) {

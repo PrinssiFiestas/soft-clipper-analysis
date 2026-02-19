@@ -1,4 +1,4 @@
-CC = gcc
+CC = clang
 CFLAGS = -Wall -Wextra -ggdb3 -gdwarf -DBASE=$(BASE) -march=native -fno-math-errno
 # Remember to not add -O3 by default, we may want to plot in Seergdb.
 
@@ -27,6 +27,11 @@ help:
 	@echo '  find BASE=<base> [CUSTOM=<function>]  Find differences of functions from generated ones.'
 	@echo '  clean                                 Delete build artifacts.'
 	@exit 1
+
+NPROC = $(shell echo `nproc`)
+ifneq ($(NPROC),0)
+CFLAGS += -DNPROC=$(NPROC)
+endif
 
 smoothest:
 	@mkdir -p build
@@ -67,7 +72,7 @@ test_rms:
 find:
 	@mkdir -p build
 	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
-	@$(CC) -o build/finder $(CFLAGS) -lm src/thd.c src/cdf.c src/finder.c && ./build/finder
+	@$(CC) -o build/finder $(CFLAGS) -O3 -lm src/thd.c src/cdf.c src/finder.c && ./build/finder
 
 
 clean:

@@ -6,7 +6,8 @@
 #include <unistd.h>
 #include <errno.h>
 
-_Atomic uint64_t g_sequence_length = 0;
+_Atomic bool g_got_sequence_length;
+uint64_t g_sequence_length;
 
 void* estimate_sequence_length(void*_)
 {
@@ -41,6 +42,7 @@ void* estimate_sequence_length(void*_)
             printf("Found completed sequence length cache. Delete %s for timing.\n", cache_path);
             printf("Sequence length: %s\n", (char*)cache_contents + sizeof CACHE_STR - 1);
             g_sequence_length = *count;
+            g_got_sequence_length = true;
             return NULL;
         } else if (cache_found) {
             puts("Found incomplete sequence length estimation cache. Estimation may not be accurate.");
@@ -64,6 +66,7 @@ void* estimate_sequence_length(void*_)
         printf("Took %g seconds to count sequence length of base %i.\n", t, BASE);
     printf("Sequence length: %llu\n", (unsigned long long)*count);
     g_sequence_length = *count;
+    g_got_sequence_length = true;
 
     if ((intptr_t)cache_contents > 0) {
         size_t contents_length = sprintf(cache_contents, CACHE_STR "%llu\n", (unsigned long long)*count);

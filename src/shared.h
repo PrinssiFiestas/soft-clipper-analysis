@@ -52,6 +52,10 @@ typedef int fixed_t;
 #define IIR_POLES 3
 // Good combinations: (1, 3)
 
+// Values bigger than one need extrapolation. Too much extrapolation will be
+// unreliable and must be discarded.
+#define MAX_IN_GAIN 1.5f
+
 // Initialize clipper function generator.
 static inline void f_init(int f[1 + BASE])
 {
@@ -72,6 +76,24 @@ static inline void f_print(const int f[1 + BASE])
     puts("]");
 }
 
+// Checks if generated function is increasing and it's derivative is decreasing.
+static inline bool f_valid(const int f[1 + BASE])
+{
+    bool value_increasing = true;
+    bool diff_decreasing  = true;
+    int  diff = f[1];
+
+    for (size_t i = 1; i < 1 + BASE; ++i) {
+        value_increasing = f[i] >= f[i-1];
+        diff_decreasing  = f[i] - f[i-1] <= diff;
+        if (!value_increasing || !diff_decreasing)
+            return false;
+        diff = f[i] - f[i-1];
+    }
+
+    return true;
+}
+
 // Next function from function sequence. f_state should be initialized to one or
 // zero. f should be initialized using f_init().
 static inline bool f_next(uint32_t* f_state, int f[1 + BASE])
@@ -87,7 +109,7 @@ static inline bool f_next(uint32_t* f_state, int f[1 + BASE])
     else do { // flush from left
         --*i;
         d1 = f[*i-0] - f[*i-1];
-        d2 = f[*i-1] - f[*i-2];
+        d2 = f[*i-1] - f[*i-1-(*i>1)];
     } while (d1 == d2);
 
     int inc = f[*i] + 1;
@@ -157,7 +179,7 @@ static inline float f_call(const float f[restrict], float x)
     float t = BASE*x;
     float floor = floorf(t);
     float fract = t - floor;
-    int i = floor > INT_MAX ? INT_MAX : floor < INT_MIN ? INT_MIN : floor;
+    int i = (int)floor >= INT_MAX ? INT_MAX : (int)floor < INT_MIN ? INT_MIN : floor;
 
     if (-BASE <= i && i < BASE) // interpolate
         return (1.f-fract)*f[i] + fract*f[i+1];
@@ -322,7 +344,7 @@ static inline float f_hardness(const float f[restrict], float out_gain, float in
 {
     // Check if too much data out of bounds for reliable results. Experiment
     // showed that most input gains are well below 1 anyway.
-    if (in_gain > 1.5f) // don't try to extrapolate.
+    if (in_gain > MAX_IN_GAIN) // don't try to extrapolate.
         return 1e20f; // discard
 
     // If f_normalized(x) = out_gain*f(in_gain*x), then chain rule gives us

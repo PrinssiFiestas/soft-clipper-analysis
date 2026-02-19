@@ -1,6 +1,7 @@
 #include "shared.h"
 
-#define OVERSAMPLE_POWER 4
+#define OVERSAMPLE_POWER 3
+#define OVERSAMPLE_FILTER_CUTOFF .5f
 
 #ifdef CUSTOM
 // TODO
@@ -55,7 +56,7 @@ float* oversampled_derivative(
         }
 
         // IIR smooth out linear interpolation distortion.
-        float b = .33f;
+        float b = OVERSAMPLE_FILTER_CUTOFF;
         float a = (1.f - b);
         for (size_t i = 1; i < (IIR_TAIL_LENGTH + 1lu + BASE) << (pow + 1); ++i)
             f_oversampled[i] = a*f_oversampled[i] + b*f_oversampled[i-1];
@@ -65,13 +66,20 @@ float* oversampled_derivative(
         f_buf = swap;
     }
 
-    // Unswap
-    if ((OVERSAMPLE_POWER & 1) == 0)
-        memcpy(f_oversampled, f_buf, sizeof f_buf_mem);
-    else
+    if (f_oversampled == f_buf_mem)
         f_oversampled = f_buf;
+    else
+        memcpy(f_oversampled, f_buf, sizeof f_buf_mem);
+    if (f_oversampled == f_buf_mem)
+        __builtin_unreachable();
+    return f_oversampled;
 
-    return f_oversampled + (IIR_TAIL_LENGTH << OVERSAMPLE_POWER);
+    // // Unswap
+    // if ((OVERSAMPLE_POWER & 1) == 0)
+    //     memcpy(f_oversampled, f_buf, sizeof f_buf_mem);
+    // else
+    //     f_oversampled = f_buf;
+    // return f_oversampled + (IIR_TAIL_LENGTH << OVERSAMPLE_POWER);
 }
 
 int main(void)
@@ -258,7 +266,22 @@ int main(void)
         (float[(IIR_TAIL_LENGTH + 1 + BASE) << OVERSAMPLE_POWER]){0},
         logistic_gen_filtered);
 
+    float blunter_hardness = f_hardness(
+        blunter_gen_filtered, blunter_gen_output_gain, blunter_gen_input_gain);
+    float arctan_hardness = f_hardness(
+        arctan_gen_filtered, arctan_gen_output_gain, arctan_gen_input_gain);
+    float logistic_hardness = f_hardness(
+        logistic_gen_filtered, logistic_gen_output_gain, logistic_gen_input_gain);
+
+    #if PRINT_HARNDESS_RATIOS
+    fprintf(stderr, "Ha / HB = %g\n", arctan_hardness / blunter_hardness);
+    fprintf(stderr, "Hl / HB = %g\n", logistic_hardness / blunter_hardness);
+    #endif
+
     (void)blunter_derivative;
     (void)arctan_derivative;
     (void)logistic_derivative;
+    (void)blunter_hardness;
+    (void)arctan_hardness;
+    (void)logistic_hardness;
 }
