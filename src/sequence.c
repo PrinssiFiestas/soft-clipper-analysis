@@ -14,10 +14,7 @@ void* estimate_sequence_length(void*_)
     (void)_;
     #define CACHE_STR "Completed: "
 
-    char cache_path[64] = "";
-    if (access("build", F_OK) == 0)
-        strcat(cache_path, "build/");
-    strcat(cache_path, "seqcount" BASE_STR ".cache");
+    const char* cache_path = "cache/seqcount" BASE_STR ".cache";
 
     int f_fallback_buf[1 + BASE] = {0}; // in case of failing to cache.
     int* f = f_fallback_buf;
@@ -25,6 +22,8 @@ void* estimate_sequence_length(void*_)
     uint64_t* count = &(uint64_t){1};
     f_init(f);
     bool cache_found = access(cache_path, F_OK) == 0;
+    if ( ! cache_found)
+        mkdir("cache", 0755);
     void* cache_contents = NULL;
     int cache_fd = open(cache_path, O_RDWR | O_CREAT, 0666);
     ftruncate(cache_fd, 4096);

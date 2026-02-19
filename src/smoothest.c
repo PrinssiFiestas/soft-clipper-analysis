@@ -56,11 +56,10 @@ int main(void)
     if (get_date(time_buf) != NULL)
         printf("Starting work on %s\n", time_buf);
 
-    char backup_path[64] = "";
-    if (access("build", F_OK) == 0)
-        strcat(backup_path, "build/");
-    strcat(backup_path, "backup" BASE_STR ".cache");
+    const char* backup_path = "cache/backup" BASE_STR ".cache";
     bool backup_found = access(backup_path, F_OK) == 0;
+    if ( ! backup_found)
+        mkdir("cache", 0755);
     int backup_fd = open(backup_path, O_RDWR | O_CREAT, 0666);
     Work backup = {0};
     if (backup_found && backup_fd != -1) {
@@ -125,7 +124,9 @@ int main(void)
     float f_in_gain = normalized_input_gain(f_result);
     float f_out_gain = normalized_output_gain(f_result, f_in_gain);
 
-    const char* result_csv_path = "smoothest" BASE_STR ".csv";
+    if (access("results", F_OK) != 0)
+        mkdir("results", 0755);
+    const char* result_csv_path = "results/smoothest" BASE_STR ".csv";
     FILE* result_csv_file;
     while ((result_csv_file = fopen(result_csv_path, "wb")) == NULL) {
         fprintf(stderr, "Failed opening result file %s: %s\n", result_csv_path, strerror(errno));
@@ -143,7 +144,7 @@ int main(void)
     else
         fprintf(stderr, "Failed writing result to %s: %s\n", result_csv_path, strerror(errno));
 
-    const char* result_bin_path = "smoothest" BASE_STR ".bin";
+    const char* result_bin_path = "results/smoothest" BASE_STR ".bin";
     FILE* result_bin_file;
     while ((result_bin_file = fopen(result_bin_path, "wb")) == NULL) {
         fprintf(stderr, "Failed opening binary result file %s: %s\n", result_bin_path, strerror(errno));
@@ -172,7 +173,7 @@ static __uint128_t dispatch_work(
         }
     }
     __uint128_t sleep_start = time_begin();
-    usleep(1000);
+    usleep(100);
     sleep_time += time_begin() - sleep_start;
     if ( ! g_work_done)
         goto try_dispatch;
