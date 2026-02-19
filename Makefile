@@ -1,4 +1,4 @@
-CC = clang
+CC = gcc
 CFLAGS = -Wall -Wextra -ggdb3 -gdwarf -DBASE=$(BASE) -march=native -fno-math-errno
 # Remember to not add -O3 by default, we may want to plot in Seergdb.
 
@@ -72,8 +72,7 @@ test_rms:
 find:
 	@mkdir -p build
 	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
-	@$(CC) -o build/finder $(CFLAGS) -O3 -lm src/thd.c src/cdf.c src/finder.c && ./build/finder
-
+	@$(CC) -o build/finder $(CFLAGS) -lm src/thd.c src/cdf.c src/finder.c && ./build/finder
 
 clean:
 	rm -rf build

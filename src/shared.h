@@ -166,9 +166,9 @@ static inline void f_filter(float f_out[restrict], const int f_in[restrict BASE]
         for (int i = -1 - BASE - IIR_TAIL_LENGTH + 2; i <= BASE + IIR_TAIL_LENGTH; ++i)
             f_out[i] = a*f_out[i] + b*f_out[i - 1];
     }
-    // Combine for zero phase
+    // Combine for zero phase. Scale as well for sensible ranges.
     for (int i = -BASE - IIR_TAIL_LENGTH; i <= BASE + IIR_TAIL_LENGTH; ++i)
-        f_out[i] += f_right[i];
+        f_out[i] = (1.f/BASE) * (f_out[i] + f_right[i]);
 }
 
 // Call f with x with normalized scale, so f_call(f, 1.f) == f[BASE]. In between
@@ -356,7 +356,7 @@ static inline float f_hardness(const float f[restrict], float out_gain, float in
         float d1 = f[i+1] - f[i+0];
         min = fminf(min, d1 - d0);
     }
-    float hardness = -out_gain * in_gain * in_gain * min;
+    float hardness = -out_gain * in_gain * in_gain * min * BASE * BASE;
     if (in_gain <= 1.f) // all data included, can trust result.
         return hardness;
     // else check if we have to extrapolate.

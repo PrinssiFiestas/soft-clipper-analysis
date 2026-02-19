@@ -3,7 +3,7 @@
 
 #define TESTS // for THD unit tests
 // #define THD_PLOT // generate CSV describing THD as a function of input gain
-#define BENCH // benchmark
+// #define BENCH // benchmark
 // #define PLOT_IN_GAINS // to see that most in gains do fall well below 1.
 
 #define SKIP 2 // harmonics close to Nyquist are likely to be dominated by noise.

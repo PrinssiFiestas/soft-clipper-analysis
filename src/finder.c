@@ -1,7 +1,7 @@
 #include "shared.h"
 
 #define OVERSAMPLE_POWER 3
-#define OVERSAMPLE_FILTER_CUTOFF .5f
+#define OVERSAMPLE_FILTER_INTENSITY .5f
 
 #ifdef CUSTOM
 // TODO
@@ -47,7 +47,7 @@ float* oversampled_derivative(
     for (size_t pow = 0; pow < OVERSAMPLE_POWER; ++pow)
     {
         // TODO should do bidirectional filtering. We cannot move the x axis,
-        // this would yield to discarding ranges of values!
+        // this would yield to discarding ranges of values! Or should we just offset?
 
         // Expand by linearly interpolating.
         for (size_t i = 0; i < (IIR_TAIL_LENGTH + 1lu + BASE) << pow; ++i) {
@@ -56,7 +56,7 @@ float* oversampled_derivative(
         }
 
         // IIR smooth out linear interpolation distortion.
-        float b = OVERSAMPLE_FILTER_CUTOFF;
+        float b = OVERSAMPLE_FILTER_INTENSITY;
         float a = (1.f - b);
         for (size_t i = 1; i < (IIR_TAIL_LENGTH + 1lu + BASE) << (pow + 1); ++i)
             f_oversampled[i] = a*f_oversampled[i] + b*f_oversampled[i-1];
@@ -72,14 +72,7 @@ float* oversampled_derivative(
         memcpy(f_oversampled, f_buf, sizeof f_buf_mem);
     if (f_oversampled == f_buf_mem)
         __builtin_unreachable();
-    return f_oversampled;
-
-    // // Unswap
-    // if ((OVERSAMPLE_POWER & 1) == 0)
-    //     memcpy(f_oversampled, f_buf, sizeof f_buf_mem);
-    // else
-    //     f_oversampled = f_buf;
-    // return f_oversampled + (IIR_TAIL_LENGTH << OVERSAMPLE_POWER);
+    return f_oversampled + (IIR_TAIL_LENGTH << OVERSAMPLE_POWER);
 }
 
 int main(void)
@@ -118,6 +111,33 @@ int main(void)
     float blunter_output_gain  = normalized_output_gain(blunter, blunter_input_gain);
     float arctan_output_gain   = normalized_output_gain(arctan, arctan_input_gain);
     float logistic_output_gain = normalized_output_gain(logistic, logistic_input_gain);
+
+    #if MEASURE_REAL_HARDNESS
+    float B_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH] = {0};
+    float a_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH] = {0};
+    float L_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH] = {0};
+    float* B = B_mem + IIR_TAIL_LENGTH + BASE;
+    float* a = a_mem + IIR_TAIL_LENGTH + BASE;
+    float* L = L_mem + IIR_TAIL_LENGTH + BASE;
+    for (int i = -BASE - IIR_TAIL_LENGTH+1; i < BASE + IIR_TAIL_LENGTH; ++i) {
+        double x = blunter_input_gain*(double)i/BASE;
+        B[i] = blunter_output_gain * (x > 1. ? 1. : x < -1. ? -1.f : 2.*x - fabs(x)*x);
+        x = arctan_input_gain*(double)i/BASE;
+        a[i] = arctan_output_gain*atan(2.*x);
+        x = logistic_input_gain*(double)i/BASE;
+        L[i] = logistic_output_gain * (2. / (1. + exp(-3.*x)) - 1);
+    }
+    float b_hardness = f_hardness(B, 1.f, 1.f);
+    float a_hardness = f_hardness(a, 1.f, 1.f);
+    float l_hardness = f_hardness(L, 1.f, 1.f);
+    printf("Blunter real hardness:  %g\n", b_hardness);
+    printf("Arctan real hardness:   %g\n", a_hardness);
+    printf("Logistic real hardness: %g\n", l_hardness);
+    printf("Real ratios:\n");
+    printf("Ha / HB = %g\n", a_hardness / b_hardness);
+    printf("Hl / HB = %g\n", l_hardness / b_hardness);
+    exit(0);
+    #endif
 
     float  blunter_min_diff  = INFINITY;
     float  arctan_min_diff   = INFINITY;
@@ -273,9 +293,28 @@ int main(void)
     float logistic_hardness = f_hardness(
         logistic_gen_filtered, logistic_gen_output_gain, logistic_gen_input_gain);
 
-    #if PRINT_HARNDESS_RATIOS
+    #if 1//PRINT_HARNDESS_RATIOS
     fprintf(stderr, "Ha / HB = %g\n", arctan_hardness / blunter_hardness);
     fprintf(stderr, "Hl / HB = %g\n", logistic_hardness / blunter_hardness);
+
+    float blunter_os_hardness  = 0.f;
+    float arctan_os_hardness   = 0.f;
+    float logistic_os_hardness = 0.f;
+    for (size_t i = 0; i < (1 + BASE) << OVERSAMPLE_POWER; ++i) {
+        blunter_os_hardness = fminf(
+            blunter_os_hardness, blunter_derivative[i] - blunter_derivative[i-1]);
+        arctan_os_hardness = fminf(
+            arctan_os_hardness, arctan_derivative[i] - arctan_derivative[i-1]);
+        logistic_os_hardness = fminf(
+            logistic_os_hardness, logistic_derivative[i] - logistic_derivative[i-1]);
+    }
+    blunter_os_hardness *= -blunter_gen_output_gain*blunter_gen_input_gain*blunter_gen_input_gain;
+    arctan_os_hardness *= -arctan_gen_output_gain*arctan_gen_input_gain*arctan_gen_input_gain;
+    logistic_os_hardness *= -logistic_gen_output_gain*logistic_gen_input_gain*logistic_gen_input_gain;
+
+    fprintf(stderr, "Oversampled:\n");
+    fprintf(stderr, "Ha / HB = %g\n", arctan_os_hardness / blunter_os_hardness);
+    fprintf(stderr, "Hl / HB = %g\n", logistic_os_hardness / blunter_os_hardness);
     #endif
 
     (void)blunter_derivative;
