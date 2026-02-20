@@ -10,10 +10,6 @@
 #define NPROC 8
 #endif
 
-#ifndef CACHE_LINE_SIZE
-#define CACHE_LINE_SIZE 64
-#endif
-
 typedef struct work
 {
     _Alignas(CACHE_LINE_SIZE)

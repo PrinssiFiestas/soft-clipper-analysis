@@ -58,9 +58,15 @@ typedef int fixed_t;
 // unreliable and must be discarded.
 #define MAX_IN_GAIN 1.5f
 
+#ifndef WORK_SIZE
 // Sequence length for each thread.
 #define WORK_SIZE (1lu << 12)
+#endif
 _Static_assert((WORK_SIZE & (WORK_SIZE - 1)) == 0, "WORK_SIZE must be a power of two.");
+
+#ifndef CACHE_LINE_SIZE
+#define CACHE_LINE_SIZE 64
+#endif
 
 // Initialize clipper function generator.
 static inline void f_init(int f[1 + BASE])

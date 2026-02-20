@@ -1,3 +1,4 @@
+#include "shared.h"
 #include <glad/glad.h>
 #include <X11/Xlib.h>
 #include <GL/glx.h>
@@ -69,7 +70,7 @@ int main(void)
     shader_source[shader_source_length] = '\0';
     close(shader_fd);
 
-    char info_log[256];
+    char info_log[2048];
     GLuint shader = glCreateShader(GL_COMPUTE_SHADER);
     glShaderSource(shader, 1, &(const char*){shader_source}, NULL);
     glCompileShader(shader);
@@ -107,9 +108,28 @@ int main(void)
     XFree(visual_info);
     XCloseDisplay(display);
 
-    puts("const char shader_source[] ="); // TODO `#version 430 core` has to be first line!
+    size_t i = 0;
+    puts("const char shader_source[] =");
     printf("    \"");
-    for (size_t i = 0; i < shader_source_length; ++i) {
+    for (; shader_source[i] != '\n'; ++i) // #version must be first line.
+        putchar(shader_source[i]);
+    puts("\\n\"");
+
+    printf("    \"#define EXTERNAL_DEFS\\n\"\n");
+    printf("    \"#define BASE            %i\\n\"\n", BASE           );
+    printf("    \"#define T               %i\\n\"\n", T              );
+    printf("    \"#define THD_NORMALIZED  %g\\n\"\n", THD_NORMALIZED );
+    printf("    \"#define SKIP            %i\\n\"\n", SKIP           );
+    printf("    \"#define IIR_TAIL_LENGTH %i\\n\"\n", IIR_TAIL_LENGTH);
+    printf("    \"#define IIR_INTENSITY   %i\\n\"\n", IIR_INTENSITY  );
+    printf("    \"#define IIR_POLES       %i\\n\"\n", IIR_POLES      );
+    printf("    \"#define MAX_IN_GAIN     %g\\n\"\n", MAX_IN_GAIN    );
+    printf("    \"#define CACHE_LINE_SIZE %i\\n\"\n", CACHE_LINE_SIZE);
+    printf("    \"#define WORK_SIZE       %lu\\n\"\n", WORK_SIZE     );
+    puts("    \"\\n\"");
+
+    printf("    \"");
+    for (++i; i < shader_source_length; ++i) {
         if (shader_source[i] == '\n') {
             printf("\\n\"\n    \"");
             continue;

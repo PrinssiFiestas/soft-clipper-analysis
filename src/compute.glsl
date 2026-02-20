@@ -317,7 +317,32 @@ float f_hardness(float out_gain, float in_gain)
 
 void main()
 {
-    f_gen   = RESULT.gen;
-    f_state = RESULT.state;
+    uint f_index_hi = RESULT.index_hi;
+    uint f_index    = RESULT.index_lo;
+    f_gen           = RESULT.gen;
+    f_state         = RESULT.state;
     RESULT.hardness = 1e10;
+
+    if (f_index_hi == uint(-1) && f_index == uint(-1))
+        return;
+
+    do {
+        f_filter();
+        float in_gain = normalized_input_gain();
+        if (in_gain > MAX_IN_GAIN)
+            continue;
+        float out_gain = normalized_output_gain(in_gain);
+        float hardness = f_hardness(out_gain, in_gain);
+        if (hardness < RESULT.hardness) {
+            RESULT.index_hi = f_index_hi;
+            RESULT.index_lo = f_index;
+            RESULT.state    = f_state;
+            RESULT.hardness = hardness;
+            RESULT.gen      = f_gen;
+        }
+
+        ++f_index;
+        if (f_index == 0)
+            ++f_index_hi;
+    } while ((f_index & uint(WORK_SIZE-1)) > 0 && f_next());
 }
