@@ -97,6 +97,7 @@ int main(void)
     printf("    \"#define MAX_IN_GAIN     %g\\n\"\n", MAX_IN_GAIN    );
     printf("    \"#define CACHE_LINE_SIZE %i\\n\"\n", CACHE_LINE_SIZE);
     printf("    \"#define WORK_SIZE       %i\\n\"\n", WORK_SIZE      );
+    printf("    \"#define WORK_GROUP_SIZE %i\\n\"\n", WORK_GROUP_SIZE);
     puts("    \"\\n\"");
 
     printf("    \"");

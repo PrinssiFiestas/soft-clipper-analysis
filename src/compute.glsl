@@ -16,6 +16,7 @@
 #define MAX_IN_GAIN 1.5
 #define CACHE_LINE_SIZE 64
 #define WORK_SIZE (1 << 12)
+#define WORK_GROUP_SIZE 16
 #endif
 
 // Index offset to middle element.
@@ -33,13 +34,13 @@ struct Work
     float pad[(CACHE_LINE_SIZE - ((4 + 1+BASE)*4) % CACHE_LINE_SIZE) / 4];
 };
 
-layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = WORK_GROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
 layout(std430, binding = 0) buffer work_buffer
 {
     Work f[];
 } work;
 
-#define RESULT work.f[gl_WorkGroupID.x]
+#define RESULT work.f[gl_GlobalInvocationID.x]
 uint  f_state;
 int   f_gen[1 + BASE];
 float f[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];

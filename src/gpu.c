@@ -1,3 +1,4 @@
+#include "shared.h"
 #include "../build/shader_source.c"
 #include <glad/glad.h>
 #include <X11/Xlib.h>
@@ -29,8 +30,8 @@ message_callback(
 {
     (void)source; (void)id; (void)length; (void)userParam;
 
-    //if (severity == GL_DEBUG_SEVERITY_NOTIFICATION)
-    //    return;
+    if (severity == GL_DEBUG_SEVERITY_NOTIFICATION)
+        return;
     fprintf( stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
            ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ),
             type, severity, message );
@@ -91,7 +92,7 @@ void gpu_compute(size_t buffer_length, size_t buffer_element_size, void* buffer)
     glBufferData(GL_SHADER_STORAGE_BUFFER, work_size, buffer, GL_STATIC_READ);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo);
 
-    glDispatchCompute(buffer_length, 1, 1);
+    glDispatchCompute(buffer_length/WORK_GROUP_SIZE, 1, 1);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
     glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, work_size, buffer);
     // glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // TODO is this necessary?
@@ -107,7 +108,6 @@ void gpu_destroy(void)
     XCloseDisplay(display);
 }
 
-#include "shared.h"
 #define WORK_INTERVAL 53 // somewhat random on purpose
 
 int main(void)
@@ -115,8 +115,8 @@ int main(void)
     bool got_gpu = gpu_init();
     assert(got_gpu);
 
-    Work work_gpu[128];
-    Work work_cpu[128];
+    static Work work_gpu[1 << 16];
+    static Work work_cpu[1 << 16];
     size_t work_length = 0;
 
     Work w = {.f_state = 1 };
@@ -130,9 +130,15 @@ int main(void)
     } while (work_length < sizeof work_gpu/sizeof work_gpu[0]
                 && f_next(&w.f_state, w.f_gen));
 
+    __uint128_t gpu_time_start = time_begin();
+    __asm__ __volatile__("":::"memory");
     gpu_compute(work_length, sizeof w, work_gpu);
+    __asm__ __volatile__("":::"memory");
+    double gpu_time = time_diff(gpu_time_start);
     gpu_destroy();
 
+    __uint128_t cpu_time_start = time_begin();
+    __asm__ __volatile__("":::"memory");
     for (size_t i = 0; i < work_length; ++i) {
         float f_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
         float* f = f_mem + IIR_TAIL_LENGTH + BASE;
@@ -145,17 +151,26 @@ int main(void)
         work_cpu[i].out_gain = out_gain;
         #endif
     }
+    __asm__ __volatile__("":::"memory");
+    double cpu_time = time_diff(cpu_time_start);
 
     float ratios_mean = 0.f;
     for (size_t i = 0; i < work_length; ++i)
-        ratios_mean += work_gpu[i].f_hardness / work_cpu[i].f_hardness;
+        if (work_gpu[i].f_hardness < 1e10f && work_cpu[i].f_hardness < 1e10f)
+            ratios_mean += work_gpu[i].f_hardness / work_cpu[i].f_hardness;
+        // else ignore discarded values.
     ratios_mean /= work_length;
 
     bool failed = false;
     if (fabsf(1.f - ratios_mean) > .02f)
         failed = fprintf(stderr, "[FAILED] ratios mean test! Expected close to zero difference.\n");
     else
-        printf("[PASSED] ratios mean test.");
+        printf("[PASSED] ratios mean test.\n");
     printf("GPU and CPU implementations have %g%% difference.\n", 100.f*fabsf(1.f - ratios_mean));
+    if ( ! failed) {
+        printf("CPU time: %g\n", cpu_time);
+        printf("GPU time: %g\n", gpu_time);
+        printf("Time ratio: %g%%\n", 100.*cpu_time/gpu_time);
+    }
     exit(failed);
 }

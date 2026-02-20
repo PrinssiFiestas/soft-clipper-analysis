@@ -72,6 +72,8 @@ _Static_assert((WORK_SIZE & (WORK_SIZE - 1)) == 0, "WORK_SIZE must be a power of
 #define NPROC 8
 #endif
 
+#define WORK_GROUP_SIZE 16
+
 // Can be defined to store and inspect extra data from shader.
 //#define GPU_DEBUG 1
 
