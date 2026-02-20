@@ -28,7 +28,9 @@ struct Work
     uint  state;
     float hardness;
     int   gen[1 + BASE];
-    int   pad[(CACHE_LINE_SIZE - ((5 + 1+BASE)*4) % CACHE_LINE_SIZE) / 4];
+
+    // Alignment and debugging.
+    float pad[(CACHE_LINE_SIZE - ((4 + 1+BASE)*4) % CACHE_LINE_SIZE) / 4];
 };
 
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
@@ -290,8 +292,8 @@ float f_hardness(float out_gain, float in_gain)
     // care about x, we just need the minimum value of the second derivative.
     float d_min = 0.;
     for (uint i = 0; i <= BASE; ++i) {
-        float d0 = f[i-0] - f[i-1];
-        float d1 = f[i+1] - f[i+0];
+        float d0 = f[F_MID + i-0] - f[F_MID + i-1];
+        float d1 = f[F_MID + i+1] - f[F_MID + i+0];
         d_min = min(d_min, d1 - d0);
     }
     float hardness = -out_gain * in_gain * in_gain * d_min * BASE * BASE;
@@ -323,9 +325,6 @@ void main()
     f_state         = RESULT.state;
     RESULT.hardness = 1e10;
 
-    if (f_index_hi == uint(-1) && f_index == uint(-1))
-        return;
-
     do {
         f_filter();
         float in_gain = normalized_input_gain();
@@ -340,7 +339,6 @@ void main()
             RESULT.hardness = hardness;
             RESULT.gen      = f_gen;
         }
-
         ++f_index;
         if (f_index == 0)
             ++f_index_hi;

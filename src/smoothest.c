@@ -6,26 +6,6 @@
 #include <unistd.h>
 #include <errno.h>
 
-#ifndef NPROC
-#define NPROC 8
-#endif
-
-typedef struct work
-{
-    _Alignas(CACHE_LINE_SIZE)
-    uint64_t f_index;
-    uint32_t f_state;
-    float    f_hardness;
-    int      f_gen[1 + BASE];
-} Work;
-
-typedef _Atomic enum worker_state
-{
-    WAITING,
-    BUSY,
-    GOT_RESULT,
-} Worker;
-
 _Atomic bool g_work_done = false;
 Work   g_work[NPROC];
 Worker g_workers[NPROC];

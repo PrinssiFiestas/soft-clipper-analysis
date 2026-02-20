@@ -60,13 +60,41 @@ typedef int fixed_t;
 
 #ifndef WORK_SIZE
 // Sequence length for each thread.
-#define WORK_SIZE (1lu << 12)
+#define WORK_SIZE (1 << 12)
 #endif
 _Static_assert((WORK_SIZE & (WORK_SIZE - 1)) == 0, "WORK_SIZE must be a power of two.");
 
 #ifndef CACHE_LINE_SIZE
 #define CACHE_LINE_SIZE 64
 #endif
+
+#ifndef NPROC
+#define NPROC 8
+#endif
+
+// Can be defined to store and inspect extra data from shader.
+//#define GPU_DEBUG 1
+
+typedef struct work
+{
+    _Alignas(CACHE_LINE_SIZE)
+    uint64_t f_index;
+    uint32_t f_state;
+    float    f_hardness;
+    int      f_gen[1 + BASE];
+
+    #if GPU_DEBUG
+    float in_gain;
+    float out_gain;
+    #endif
+} Work;
+
+typedef _Atomic enum worker_state
+{
+    WAITING,
+    BUSY,
+    GOT_RESULT,
+} Worker;
 
 // Initialize clipper function generator.
 static inline void f_init(int f[1 + BASE])
@@ -410,5 +438,9 @@ __attribute__((unused)) static float* debug_derivative2(size_t length, float f[]
     debug_buf2[0] = debug_buf2[1] = 0.f;
     return debug_buf2;
 }
+
+bool gpu_init(void);
+void gpu_compute(size_t buffer_length, size_t buffer_element_size, void* buffer);
+void gpu_destroy(void);
 
 #endif // SHARED_H_INCLUDED

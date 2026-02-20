@@ -1,3 +1,6 @@
+// Metaprogram that checks if shader compiles and generates final shader with
+// external #defines.
+
 #include "shared.h"
 #include <glad/glad.h>
 #include <X11/Xlib.h>
@@ -10,27 +13,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-
-#if 0 // TODO move this
-void GLAPIENTRY
-message_callback(
-    GLenum source,
-    GLenum type,
-    GLuint id,
-    GLenum severity,
-    GLsizei length,
-    const GLchar* message,
-    const void* userParam)
-{
-    (void)source; (void)id; (void)length; (void)userParam;
-
-    if (severity == GL_DEBUG_SEVERITY_NOTIFICATION)
-        return;
-    fprintf( stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
-           ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ),
-            type, severity, message );
-}
-#endif
 
 int main(void)
 {
@@ -46,17 +28,6 @@ int main(void)
 
     int gl_version = gladLoadGL();
     assert(gl_version != 0);
-    //glEnable(GL_DEBUG_OUTPUT); // TODO we don't need these here, but later do!
-    //glDebugMessageCallback(message_callback, 0);
-
-    #if EXECUTE_SHADER // TODO we don't execute here, move to appropriate file.
-    int data = -1;
-    GLuint ssbo;
-    glGenBuffers(1, &ssbo);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof data, &data, GL_STATIC_READ);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo);
-    #endif
 
     char shader_source[(1 << 14) + sizeof""];
     const char* shader_path = "src/compute.glsl";
@@ -92,15 +63,15 @@ int main(void)
         exit(EXIT_FAILURE);
     }
 
-    #if EXECUTE_SHADER // TODO we don't execute here, move to appropriate file.
-    GLuint program = glCreateProgram();
-    glAttachShader(program, shader);
-    glLinkProgram(program);
-    glUseProgram(program);
-    glDispatchCompute(1, 1, 1);
-    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof data, &data);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    #if 0
+    GLint max_work_group_count[3];
+    GLint max_work_group_size[3];
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &max_work_group_count[0]);
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, &max_work_group_count[1]);
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, &max_work_group_count[2]);
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE,  0, &max_work_group_size[0]);
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE,  1, &max_work_group_size[1]);
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE,  2, &max_work_group_size[2]);
     #endif
 
     glXMakeCurrent(display, 0, 0);
@@ -125,7 +96,7 @@ int main(void)
     printf("    \"#define IIR_POLES       %i\\n\"\n", IIR_POLES      );
     printf("    \"#define MAX_IN_GAIN     %g\\n\"\n", MAX_IN_GAIN    );
     printf("    \"#define CACHE_LINE_SIZE %i\\n\"\n", CACHE_LINE_SIZE);
-    printf("    \"#define WORK_SIZE       %lu\\n\"\n", WORK_SIZE     );
+    printf("    \"#define WORK_SIZE       %i\\n\"\n", WORK_SIZE      );
     puts("    \"\\n\"");
 
     printf("    \"");
