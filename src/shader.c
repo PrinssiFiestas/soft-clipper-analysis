@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#if 0 // TODO move this
 void GLAPIENTRY
 message_callback(
     GLenum source,
@@ -28,8 +29,7 @@ message_callback(
            ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ),
             type, severity, message );
 }
-
-// TODO errors should not be fatal
+#endif
 
 int main(void)
 {
@@ -45,8 +45,8 @@ int main(void)
 
     int gl_version = gladLoadGL();
     assert(gl_version != 0);
-    glEnable(GL_DEBUG_OUTPUT);
-    glDebugMessageCallback(message_callback, 0);
+    //glEnable(GL_DEBUG_OUTPUT); // TODO we don't need these here, but later do!
+    //glDebugMessageCallback(message_callback, 0);
 
     #if EXECUTE_SHADER // TODO we don't execute here, move to appropriate file.
     int data = -1;
@@ -69,15 +69,25 @@ int main(void)
     shader_source[shader_source_length] = '\0';
     close(shader_fd);
 
+    char info_log[256];
     GLuint shader = glCreateShader(GL_COMPUTE_SHADER);
     glShaderSource(shader, 1, &(const char*){shader_source}, NULL);
     glCompileShader(shader);
     GLint compile_status;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &compile_status);
     if (compile_status == GL_FALSE) {
-        char info_log[256];
         glGetShaderInfoLog(shader, sizeof info_log, NULL, info_log);
-        puts(info_log);
+        fprintf(stderr, "%s\n", info_log);
+        exit(EXIT_FAILURE);
+    }
+    GLuint program = glCreateProgram();
+    glAttachShader(program, shader);
+    glLinkProgram(program);
+    GLint link_status;
+    glGetProgramiv(program, GL_LINK_STATUS, &link_status);
+    if (link_status == GL_FALSE) {
+        glGetProgramInfoLog(program, sizeof info_log, NULL, info_log);
+        fprintf(stderr, "%s\n", info_log);
         exit(EXIT_FAILURE);
     }
 
@@ -97,7 +107,7 @@ int main(void)
     XFree(visual_info);
     XCloseDisplay(display);
 
-    puts("const char shader_source[] =");
+    puts("const char shader_source[] ="); // TODO `#version 430 core` has to be first line!
     printf("    \"");
     for (size_t i = 0; i < shader_source_length; ++i) {
         if (shader_source[i] == '\n') {

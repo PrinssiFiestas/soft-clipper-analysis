@@ -73,7 +73,7 @@ float my_logf(float a)
 
 float probitf(float p)
 {
-    return sqrtf(2.f) * erfinvf(2.f*p - 1);
+    return sqrtf(2.f) * erfinvf(2.f*p - 1.f);
 }
 
 #ifdef CDF_MAIN

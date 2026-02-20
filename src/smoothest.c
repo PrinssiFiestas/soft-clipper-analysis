@@ -35,9 +35,6 @@ Work   g_work[NPROC];
 Worker g_workers[NPROC];
 Work   g_result;
 
-#define WORK_SIZE (1lu << 12)
-_Static_assert((WORK_SIZE & (WORK_SIZE - 1)) == 0, "WORK_SIZE must be a power of two.");
-
 // Total work amount.
 extern _Atomic bool g_got_sequence_length;
 extern uint64_t g_sequence_length;

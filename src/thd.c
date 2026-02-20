@@ -6,8 +6,6 @@
 // #define BENCH // benchmark
 // #define PLOT_IN_GAINS // to see that most in gains do fall well below 1.
 
-#define SKIP 2 // harmonics close to Nyquist are likely to be dominated by noise.
-
 #ifdef BENCH
 size_t g_dft_coeff_calculation_count = 0;
 size_t g_max_secant_iterations = 0;
@@ -114,7 +112,7 @@ float normalized_input_gain(const float f[1 + BASE])
             if (y2 > 0.f) // returning unfair normalization is ok.
                 return fabsf(x2);
             else // return high value that discards f.
-                return 1e10;
+                return 1e10f;
         }
         x2 = x1 - y1 * (x1 - x0) / (y1 - y0);
         y2 = f_thd(f, x2) - THD_NORMALIZED;

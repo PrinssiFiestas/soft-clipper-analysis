@@ -40,6 +40,8 @@ typedef int fixed_t;
 #define THD_NORMALIZED 0.0222559f
 #endif
 
+#define SKIP 2 // harmonics close to Nyquist are likely to be dominated by noise.
+
 // Filtering makes the edges of the function go crazy, this is length of
 // extrapolation at the edges.
 #define IIR_TAIL_LENGTH 8
@@ -55,6 +57,10 @@ typedef int fixed_t;
 // Values bigger than one need extrapolation. Too much extrapolation will be
 // unreliable and must be discarded.
 #define MAX_IN_GAIN 1.5f
+
+// Sequence length for each thread.
+#define WORK_SIZE (1lu << 12)
+_Static_assert((WORK_SIZE & (WORK_SIZE - 1)) == 0, "WORK_SIZE must be a power of two.");
 
 // Initialize clipper function generator.
 static inline void f_init(int f[1 + BASE])
@@ -118,7 +124,7 @@ static inline bool f_next(uint32_t* f_state, int f[1 + BASE])
     return true;
 }
 
-// Scale to fixed width and smooth out kinks with IIR filter.
+// Smooth out kinks with IIR filter.
 static inline void f_filter(float f_out[restrict], const int f_in[restrict BASE])
 {
     float f_right_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
@@ -330,7 +336,7 @@ float normalized_input_gain(const float f[1 + BASE]);
 // normalized RMS value.
 static inline float normalized_output_gain(const float f[restrict], float input_gain)
 {
-    float sum = 0; // of squares
+    float sum = 0.f; // of squares
     const float dt = .5f/BASE;
     for (float t = dt; t < 1.f; t += dt) {
         float x = f_call(f, input_gain*probitf(t));
