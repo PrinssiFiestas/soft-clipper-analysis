@@ -75,7 +75,7 @@ _Static_assert((WORK_SIZE & (WORK_SIZE - 1)) == 0, "WORK_SIZE must be a power of
 #define WORK_GROUP_SIZE 16
 
 // Can be defined to store and inspect extra data from shader.
-//#define GPU_DEBUG 1
+#define GPU_DEBUG 1
 
 typedef struct work
 {
@@ -86,8 +86,8 @@ typedef struct work
     int      f_gen[1 + BASE];
 
     #if GPU_DEBUG
-    float in_gain;
-    float out_gain;
+    float value1;
+    float value2;
     #endif
 } Work;
 

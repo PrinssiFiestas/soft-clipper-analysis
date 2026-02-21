@@ -146,10 +146,6 @@ int main(void)
         float in_gain  = normalized_input_gain(f);
         float out_gain = normalized_output_gain(f, in_gain);
         work_cpu[i].f_hardness = f_hardness(f, out_gain, in_gain);
-        #if GPU_DEBUG
-        work_cpu[i].in_gain  = in_gain;
-        work_cpu[i].out_gain = out_gain;
-        #endif
     }
     __asm__ __volatile__("":::"memory");
     double cpu_time = time_diff(cpu_time_start);

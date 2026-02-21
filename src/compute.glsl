@@ -235,7 +235,7 @@ float probitf(float p)
 
 float f_thd(float in_gain)
 {
-    #if 1//SCALAR_F_THD
+    #if 0
     float b0 = 0.;
     for (float t = 0.; t < 1.; t += 1./float(T))
         b0 += f_call(in_gain*sin(2.*PI*t)) * sin(2.*PI*t);
@@ -252,28 +252,27 @@ float f_thd(float in_gain)
     }
     return sum / (b0*b0);
 
-    #else // vectorized
+    #else
 
     vec4 b0 = vec4(0);
     const float dt = 1./float(T);
-    vec4 t = vec4(0, dt, 2.*dt, 3.*dt, 4.*dt);
-    for (; t.w < 1.; t += 4.*dt)
+    vec4 t = vec4(0, dt, 2.*dt, 3.*dt);
+    for (; t.x < 1. - 4.*dt; t += 4.*dt)
         b0 += f_call(in_gain*sin(2.*PI*t)) * sin(2.*PI*t);
-    b0 += step(vec4(1), t) * f_call(in_gain*sin(2.*PI*t)) * sin(2.*PI*t);
+    b0 += step(t, vec4(1)) * f_call(in_gain*sin(2.*PI*t)) * sin(2.*PI*t);
+    float B0 = b0.x + b0.y + b0.z + b0.w;
 
-    vec4 b1 = vec4(0);
     float sum = 0.; // TODO loop order may be reversed to reuse f_call()
-    for (vec4 k = vec4(3, 5, 7, 9); k.z < float(T/2 - SKIP/2); k += 8.) {
+    for (vec4 k = vec4(3, 5, 7, 9); k.w < float(T/2 - SKIP/2); k += 8.) {
         vec4 b = vec4(0);
-        for (t = vec4(0, dt, 2.*dt, 3*dt); t.w < 1.; t += 4.*dt)
+        for (float t = 0.; t < 1.; t += dt)
             b += f_call(in_gain*sin(2.*PI*t)) * sin(2.*PI*k*t);
-        b += step(vec4(1), t) * f_call(in_gain*sin(2.*PI*t)) * sin(2.*PI*k*t);
         sum += dot(b, b);
 
-        if (abs(b.w/b0.w) < .001)
+        if (abs(b.w/B0) < .001)
             break;
     }
-    return sum / dot(b0, b0);
+    return sum / (B0*B0);
     #endif
 }
 
