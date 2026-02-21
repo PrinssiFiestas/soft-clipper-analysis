@@ -146,7 +146,7 @@ static __uint128_t dispatch_work(
         }
     }
     __uint128_t sleep_start = time_begin();
-    usleep(100);
+    usleep(100); // TODO avoid sleep if there was work to be dispatched
     sleep_time += time_begin() - sleep_start;
     if ( ! g_work_done)
         goto try_dispatch;
@@ -249,7 +249,7 @@ static void* collect_results(void*_backup_fd)
         }
     }
 
-    usleep(100);
+    usleep(100); // TODO avoid sleeping if got any results
     if ( ! g_work_done)
         goto try_collect_result;
 

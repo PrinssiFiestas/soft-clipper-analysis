@@ -3,7 +3,7 @@
 
 #define TESTS // for THD unit tests
 // #define THD_PLOT // generate CSV describing THD as a function of input gain
-// #define BENCH // benchmark
+#define BENCH // benchmark
 // #define PLOT_IN_GAINS // to see that most in gains do fall well below 1.
 
 #ifdef BENCH
@@ -42,9 +42,10 @@ float x_thd(const fixed_t x[T])
 
         // k must be large enough to ensure that it is safe to ignore the rest
         // without too much loss of accuracy.
-        if (k > 2 && is_equal_fixed(bs[k], bs[k - 1], .1*A))
+        if (k > 2 && fabs((double)bs[k]/bs[0]) < .001)
             break;
     }
+
     return coeffs_thd(k, bs);
 }
 
@@ -254,6 +255,7 @@ int main(void)
     }
 
     // Test input gain normalization
+    float thd_measured;
     {
         float blunter2_mem[BASE + 1 + BASE];
         float* blunter2 = blunter2_mem + BASE;
@@ -268,7 +270,7 @@ int main(void)
                 blunter2[i] = 1.f;
         }
 
-        float thd_measured = f_thd(blunter2, 1.f);
+        thd_measured = f_thd(blunter2, 1.f);
         assert(thd_measured > (embedded_input_gain - .1f) * thd_closed_form);
         float input_gain = normalized_input_gain(blunter2);
         thd_measured = f_thd(blunter2, input_gain);
@@ -283,7 +285,8 @@ int main(void)
     }
 
     puts("THD tests [PASSED]");
-    printf("Blunter THD: %g\n", blunter_thd(T/4)); // 0.0222559f
+    printf("Blunter THD:  %g\n", blunter_thd(T/4)); // 0.0222559f
+    printf("Measured THD: %g\n", thd_measured);
     #endif // TESTS
 }
 #endif // THD_MAIN
