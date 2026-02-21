@@ -148,39 +148,40 @@ float f_call(float x)
         float y = a*x_max*x_max + b*x_max + c;
         return t >= 0. ? y : -y;
     }
-    float y = a*abs(t)*abs(t)+ b*abs(t)+ c;
+    float y = a*abs(t)*abs(t) + b*abs(t) + c;
     return t >= 0. ? y : -y;
 }
 
 vec4 f_call(vec4 x)
 {
-    return vec4(f_call(x.x), f_call(x.y), f_call(x.z), f_call(x.w)); // TODO
-
-    #if 0
-    vec4 t = vec4(BASE)*x;
+    vec4 t = float(BASE)*x;
     ivec4 it = ivec4(floor(t));
-    ivec4 i = ivec4(clamp(it, ivec4(INT_MIN), ivec4(INT_MAX)));
+    ivec4 i = ivec4(clamp(it, ivec4(-BASE), ivec4(BASE - 1)));
 
     vec4 interpolated = vec4(
-        (1.-fract(t.x))*f[F_MID + i.x] + fract(t.x)*f[F_MID + i.x+1],
-        (1.-fract(t.y))*f[F_MID + i.y] + fract(t.y)*f[F_MID + i.y+1],
-        (1.-fract(t.z))*f[F_MID + i.z] + fract(t.z)*f[F_MID + i.z+1],
-        (1.-fract(t.w))*f[F_MID + i.w] + fract(t.w)*f[F_MID + i.w+1]);
+        mix(f[F_MID + i.x], f[F_MID + i.x + 1], fract(t.x)),
+        mix(f[F_MID + i.y], f[F_MID + i.y + 1], fract(t.y)),
+        mix(f[F_MID + i.z], f[F_MID + i.z + 1], fract(t.z)),
+        mix(f[F_MID + i.w], f[F_MID + i.w + 1], fract(t.w)));
 
     // TODO these could be cached
-    vec4 d1 = max(vec4(0), vec4(f[F_MID + BASE] - f[F_MID + BASE - 1]));
-    vec4 d2 = d1 - vec4(f[F_MID + BASE - 1] - f[F_MID + BASE - 2]);
+    float d1 = f[F_MID + BASE] - f[F_MID + BASE - 1];
+    float d2 = d1 - (f[F_MID + BASE - 1] - f[F_MID + BASE - 2]);
 
-    vec4 a = .5*d2;
-    vec4 b = d1 - 2.*a*(vec4(BASE)-1.);
-    vec4 c = vec4(f[F_MID + BASE] - a*vec4(BASE*BASE) - b*vec4(BASE);
+    if (d1 <= 0.)
+        return mix(interpolated, sign(x)*f[F_MID+BASE], step(vec4(1), abs(x)));
 
-    // TODO avoid zero division
+    float a = .5*d2;
+    float b = d1 - 2.*a*(float(BASE)-1.);
+    float c = f[F_MID + BASE] - a*float(BASE*BASE) - b*float(BASE);
 
-    vec4 x_max = -b/(2.*a);
-    // TODO the rest
-    return vec4(0);
-    #endif
+    if (a == 0.) // avoid zero division
+        return mix(interpolated, b*t + c, step(vec4(1), abs(x)));
+
+    vec4 x_max = min(abs(t), vec4(-b/(2.*a)));
+    vec4 x_extra = min(abs(t), x_max);
+    vec4 extrapolated = sign(t) * (a*x_extra*x_extra + b*x_extra + c);
+    return mix(interpolated, extrapolated, step(vec4(1), abs(x)));
 }
 
 bool is_equal_float(float a, float b, float max_relative_diff)
@@ -235,25 +236,6 @@ float probitf(float p)
 
 float f_thd(float in_gain)
 {
-    #if 0
-    float b0 = 0.;
-    for (float t = 0.; t < 1.; t += 1./float(T))
-        b0 += f_call(in_gain*sin(2.*PI*t)) * sin(2.*PI*t);
-
-    float sum = 0.;
-    for (float k = 3.; k < float(T/2 - SKIP/2); k += 2.) {
-        float b = 0.;
-        for (float t = 0.; t < 1.; t += 1./float(T))
-            b += f_call(in_gain*sin(2.*PI*t)) * sin(2.*PI*k*t);
-        sum += b*b;
-
-        if (k > 6. && abs(b/b0) < .001)
-            break;
-    }
-    return sum / (b0*b0);
-
-    #else
-
     vec4 b0 = vec4(0);
     const float dt = 1./float(T);
     vec4 t = vec4(0, dt, 2.*dt, 3.*dt);
@@ -262,7 +244,7 @@ float f_thd(float in_gain)
     b0 += step(t, vec4(1)) * f_call(in_gain*sin(2.*PI*t)) * sin(2.*PI*t);
     float B0 = b0.x + b0.y + b0.z + b0.w;
 
-    float sum = 0.; // TODO loop order may be reversed to reuse f_call()
+    float sum = 0.;
     for (vec4 k = vec4(3, 5, 7, 9); k.w < float(T/2 - SKIP/2); k += 8.) {
         vec4 b = vec4(0);
         for (float t = 0.; t < 1.; t += dt)
@@ -273,7 +255,6 @@ float f_thd(float in_gain)
             break;
     }
     return sum / (B0*B0);
-    #endif
 }
 
 float normalized_input_gain()
