@@ -124,9 +124,17 @@ Work gpu_do_work(const Work* in_work)
     size_t tries = 0;
     try_work:;
     if (tries++ > 2) {
-        fprintf(stderr, "GPU failed work at index %zu (global %llu) of %zu jobs.\n",
-                result_index, (unsigned long long)in_work->f_index, work_length);
-        fprintf(stderr, "Handing off work to CPU...\n\n\n");
+        if (result_index > 0) {
+            fprintf(stderr, "GPU failed work at index %zu (global %llu) of %zu jobs.\n",
+                    result_index, (unsigned long long)in_work->f_index, work_length);
+            fprintf(stderr, "Handing off work to CPU...\n\n\n");
+        } else {
+            fprintf(stderr, "OpenGL interrupted at global index %llu.\n",
+                    (unsigned long long)in_work->f_index);
+            fprintf(stderr, "Passing this job to CPU and restarting OpenGL...\n\n\n");
+            gpu_destroy();
+            gpu_init();
+        }
         extern void cpu_do_work(Work* result);
         Work work = *in_work;
         cpu_do_work(&work);
