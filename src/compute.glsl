@@ -15,9 +15,9 @@
 #define IIR_POLES 3
 #define MAX_IN_GAIN 1.5
 #define CACHE_LINE_SIZE 64
-#define WORK_SIZE (1 << 12)
+#define GPU_WORK_SIZE (1 << 3)
 #define WORK_GROUP_SIZE 16
-#endif
+#endif // EXTERNAL_DEFS
 
 // Index offset to middle element.
 #define F_MID (IIR_TAIL_LENGTH + BASE)
@@ -39,6 +39,8 @@ layout(std430, binding = 0) buffer work_buffer
 {
     Work f[];
 } work;
+
+uniform uint g_work_length;
 
 #define RESULT work.f[gl_GlobalInvocationID.x]
 uint  f_state;
@@ -70,7 +72,7 @@ void f_filter()
 {
     float f_right[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
 
-     // Copy positive side.
+    // Copy positive side.
     for (uint i = 0; i <= BASE; ++i)
         f[F_MID + i] = f_right[F_MID + i] = f_gen[i];
 
@@ -105,8 +107,8 @@ void f_filter()
 
     for (uint k = 0; k < IIR_POLES; ++k) {
         // IIR filtering from right and left
-        const float a = 1.f / (1<<IIR_INTENSITY);
-        const float b = 1.f - a;
+        const float a = 1. / (1<<IIR_INTENSITY);
+        const float b = 1. - a;
         for (int i = 1 + BASE + IIR_TAIL_LENGTH - 2; i >= -BASE - IIR_TAIL_LENGTH; --i)
             f_right[F_MID + i] = a*f_right[F_MID + i] + b*f_right[F_MID + i + 1];
         for (int i = -1 - BASE - IIR_TAIL_LENGTH + 2; i <= BASE + IIR_TAIL_LENGTH; ++i)
@@ -114,10 +116,18 @@ void f_filter()
     }
     // Combine for zero phase. Scale as well for sensible ranges.
     for (int i = -BASE - IIR_TAIL_LENGTH; i <= BASE + IIR_TAIL_LENGTH; ++i)
-        f[F_MID + i] = (1.f/BASE) * (f[F_MID + i] + f_right[F_MID + i]);
+        f[F_MID + i] = (1./BASE) * (f[F_MID + i] + f_right[F_MID + i]);
 }
 
-float f_call(float x)
+// First and second derivative. First will be in [0], second in [1].
+vec2 f_tail_derivatives()
+{
+    float d1 = f[F_MID + BASE] - f[F_MID + BASE - 1];
+    float d2 = d1 - (f[F_MID + BASE - 1] - f[F_MID + BASE - 2]);
+    return vec2(d1, d2);
+}
+
+float f_call(float x, vec2 f_ds)
 {
     float t = float(BASE)*x;
     int i = int(floor(t)) >= INT_MAX ? INT_MAX : int(floor(t)) < INT_MIN ? INT_MIN : int(floor(t));
@@ -126,8 +136,8 @@ float f_call(float x)
         return (1.-fract(t))*f[F_MID + i] + fract(t)*f[F_MID + i+1];
     // else extrapolate.
 
-    float d1 = f[F_MID + BASE] - f[F_MID + BASE - 1];            // first derivative
-    float d2 = d1 - (f[F_MID + BASE - 1] - f[F_MID + BASE - 2]); // second derivative
+    float d1 = f_ds[0]; // first derivative
+    float d2 = f_ds[1]; // second derivative
 
     if (d1 <= 0.)
         return i >= BASE ? f[F_MID + BASE] : f[F_MID + -BASE];
@@ -152,7 +162,12 @@ float f_call(float x)
     return t >= 0. ? y : -y;
 }
 
-vec4 f_call(vec4 x)
+float f_call(float x)
+{
+    return f_call(x, f_tail_derivatives());
+}
+
+vec4 f_call(vec4 x, vec2 f_ds)
 {
     vec4 t = float(BASE)*x;
     ivec4 it = ivec4(floor(t));
@@ -164,9 +179,8 @@ vec4 f_call(vec4 x)
         mix(f[F_MID + i.z], f[F_MID + i.z + 1], fract(t.z)),
         mix(f[F_MID + i.w], f[F_MID + i.w + 1], fract(t.w)));
 
-    // TODO these could be cached
-    float d1 = f[F_MID + BASE] - f[F_MID + BASE - 1];
-    float d2 = d1 - (f[F_MID + BASE - 1] - f[F_MID + BASE - 2]);
+    float d1 = f_ds[0]; // first derivative
+    float d2 = f_ds[1]; // second derivative
 
     if (d1 <= 0.)
         return mix(interpolated, sign(x)*f[F_MID+BASE], step(vec4(1), abs(x)));
@@ -182,6 +196,11 @@ vec4 f_call(vec4 x)
     vec4 x_extra = min(abs(t), x_max);
     vec4 extrapolated = sign(t) * (a*x_extra*x_extra + b*x_extra + c);
     return mix(interpolated, extrapolated, step(vec4(1), abs(x)));
+}
+
+vec4 f_call(vec4 x)
+{
+    return f_call(x, f_tail_derivatives());
 }
 
 bool is_equal_float(float a, float b, float max_relative_diff)
@@ -236,19 +255,20 @@ float probitf(float p)
 
 float f_thd(float in_gain)
 {
+    vec2 ds = f_tail_derivatives();
     vec4 b0 = vec4(0);
     const float dt = 1./float(T);
     vec4 t = vec4(0, dt, 2.*dt, 3.*dt);
     for (; t.x < 1. - 4.*dt; t += 4.*dt)
-        b0 += f_call(in_gain*sin(2.*PI*t)) * sin(2.*PI*t);
-    b0 += step(t, vec4(1)) * f_call(in_gain*sin(2.*PI*t)) * sin(2.*PI*t);
+        b0 += f_call(in_gain*sin(2.*PI*t), ds) * sin(2.*PI*t);
+    b0 += step(t, vec4(1)) * f_call(in_gain*sin(2.*PI*t), ds) * sin(2.*PI*t);
     float B0 = b0.x + b0.y + b0.z + b0.w;
 
     float sum = 0.;
     for (vec4 k = vec4(3, 5, 7, 9); k.w < float(T/2 - SKIP/2); k += 8.) {
         vec4 b = vec4(0);
         for (float t = 0.; t < 1.; t += dt)
-            b += f_call(in_gain*sin(2.*PI*t)) * sin(2.*PI*k*t);
+            b += f_call(in_gain*sin(2.*PI*t), ds) * sin(2.*PI*k*t);
         sum += dot(b, b);
 
         if (abs(b.w/B0) < .001)
@@ -354,6 +374,9 @@ float f_hardness(float out_gain, float in_gain)
 
 void main()
 {
+    if (gl_GlobalInvocationID.x >= g_work_length)
+        return;
+
     uint f_index_hi = RESULT.index_hi;
     uint f_index    = RESULT.index_lo;
     f_gen           = RESULT.gen;
@@ -373,9 +396,13 @@ void main()
             RESULT.state    = f_state;
             RESULT.hardness = hardness;
             RESULT.gen      = f_gen;
+            #if GPU_DEBUG
+            RESULT.pad[0]   = in_gain;
+            RESULT.pad[1]   = out_gain;
+            #endif
         }
         ++f_index;
         if (f_index == 0)
             ++f_index_hi;
-    } while ((f_index & uint(WORK_SIZE-1)) > 0 && f_next());
+    } while ((f_index & uint(GPU_WORK_SIZE-1)) > 0 && f_next());
 }

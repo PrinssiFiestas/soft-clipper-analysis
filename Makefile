@@ -85,13 +85,19 @@ find:
 
 shader:
 	@mkdir -p build
-	@$(CC) -o build/shader $(CFLAGS) src/shader.c src/glad.c -lX11 -lGLX -lGL && ./build/shader
+	@$(CC) -o build/shader $(CFLAGS) -O3 src/shader.c src/glad.c -lX11 -lGLX -lGL && ./build/shader
+
+ifneq ($(BENCH),)
+CFLAGS += "-DBENCH=$(BENCH)"
+else
+test_gpu: CFLAGS += -DGPU_WORK_SIZE=1
+endif
 
 test_gpu:
 	@mkdir -p build
 	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
-	@$(CC) -o build/shader $(CFLAGS) -DWORK_SIZE=1 src/shader.c src/glad.c -lX11 -lGLX -lGL && ./build/shader > ./build/shader_source.c
-	@$(CC) -o build/testgpu $(CFLAGS) -O3 -DWORK_SIZE=1 -DGPU_MAIN src/gpu.c src/glad.c src/thd.c src/cdf.c -lm -lX11 -lGLX -lGL && ./build/testgpu
+	@$(CC) -o build/shader $(CFLAGS) src/shader.c src/glad.c -lX11 -lGLX -lGL && ./build/shader > ./build/shader_source.c
+	@$(CC) -o build/testgpu $(CFLAGS) -O3 -DGPU_MAIN src/gpu.c src/glad.c src/thd.c src/cdf.c -lm -lX11 -lGLX -lGL && ./build/testgpu
 
 clean:
 	rm -rf build

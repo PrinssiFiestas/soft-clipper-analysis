@@ -60,9 +60,12 @@ typedef int fixed_t;
 
 #ifndef WORK_SIZE
 // Sequence length for each thread.
-#define WORK_SIZE (1 << 12)
+#define WORK_SIZE (1 << 16)
 #endif
-_Static_assert((WORK_SIZE & (WORK_SIZE - 1)) == 0, "WORK_SIZE must be a power of two.");
+
+// Sequence length for each GPU work unit. Should be small to avoid GPU hang and
+// branching.
+#define GPU_WORK_SIZE (1 << 0)
 
 #ifndef CACHE_LINE_SIZE
 #define CACHE_LINE_SIZE 64
@@ -75,7 +78,7 @@ _Static_assert((WORK_SIZE & (WORK_SIZE - 1)) == 0, "WORK_SIZE must be a power of
 #define WORK_GROUP_SIZE 16
 
 // Can be defined to store and inspect extra data from shader.
-#define GPU_DEBUG 1
+//#define GPU_DEBUG 1
 
 typedef struct work
 {

@@ -17,6 +17,7 @@ static Display*     display;
 static GLXContext   glx_context;
 static XVisualInfo* visual_info;
 static GLuint       ssbo;
+static GLint        work_length_location;
 
 void GLAPIENTRY
 message_callback(
@@ -30,8 +31,6 @@ message_callback(
 {
     (void)source; (void)id; (void)length; (void)userParam;
 
-    if (severity == GL_DEBUG_SEVERITY_NOTIFICATION)
-        return;
     fprintf( stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
            ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ),
             type, severity, message );
@@ -75,6 +74,7 @@ bool gpu_init(void)
         glGetProgramInfoLog(program, sizeof info_log, NULL, info_log);
         return !fprintf(stderr, "%s\n", info_log);
     }
+    work_length_location = glGetUniformLocation(program, "g_work_length");
     glUseProgram(program);
 
     glEnable(GL_DEBUG_OUTPUT);
@@ -87,15 +87,66 @@ bool gpu_init(void)
 
 void gpu_compute(size_t buffer_length, size_t buffer_element_size, void* buffer)
 {
+    glUniform1ui(work_length_location, buffer_length);
+
     size_t work_size = buffer_element_size * buffer_length;
-    // glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo); // TODO is this necessary?
+
     glBufferData(GL_SHADER_STORAGE_BUFFER, work_size, buffer, GL_STATIC_READ);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo);
 
-    glDispatchCompute(buffer_length/WORK_GROUP_SIZE, 1, 1);
-    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    glDispatchCompute((buffer_length + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE, 1, 1);
+    glFlush();
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_BUFFER_UPDATE_BARRIER_BIT);
+
+    GLsync sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    glClientWaitSync(sync, GL_SYNC_FLUSH_COMMANDS_BIT, GL_TIMEOUT_IGNORED);
     glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, work_size, buffer);
-    // glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // TODO is this necessary?
+    glDeleteSync(sync);
+}
+
+#if BENCH
+static uint64_t t_gpu_cpu_work; // distributing work and collecting results.
+static uint64_t t_gpu_gpu_work; // actual work done on GPU
+#endif
+
+Work gpu_do_work(const Work* in_work)
+{
+    #if BENCH
+    __uint128_t t_start = time_begin();
+    __asm__ __volatile__("":::"memory");
+    #endif
+
+    static Work work_units[WORK_SIZE / GPU_WORK_SIZE];
+    Work work = *in_work;
+    size_t work_length = 0;
+
+    do {
+        if ((work.f_index & (GPU_WORK_SIZE - 1)) == 0)
+            work_units[work_length++] = work;
+        work.f_index++;
+    } while (work_length < WORK_SIZE / GPU_WORK_SIZE && f_next(&work.f_state, work.f_gen));
+
+    #if BENCH
+    __uint128_t t_gpu_start = time_begin();
+    __asm__ __volatile__("":::"memory");
+    #endif
+    gpu_compute(work_length, sizeof work, work_units);
+    #if BENCH
+    __asm__ __volatile__("":::"memory");
+    uint64_t t_gpu = time_begin() - t_gpu_start;
+    t_gpu_gpu_work += t_gpu;
+    #endif
+
+    size_t result_index = 0;
+    for (size_t i = 1; i < work_length; ++i)
+        if (work_units[i].f_hardness < work_units[result_index].f_hardness)
+            result_index = i;
+
+    #if BENCH
+    __asm__ __volatile__("":::"memory");
+    t_gpu_cpu_work += (time_begin() - t_start) - t_gpu;
+    #endif
+    return work_units[result_index];
 }
 
 void gpu_destroy(void)
@@ -108,7 +159,11 @@ void gpu_destroy(void)
     XCloseDisplay(display);
 }
 
+#if BENCH
+#define WORK_INTERVAL WORK_SIZE
+#else
 #define WORK_INTERVAL 53 // somewhat random on purpose
+#endif
 
 int main(void)
 {
@@ -118,6 +173,8 @@ int main(void)
     static Work work_gpu[1 << 16];
     static Work work_cpu[1 << 16];
     size_t work_length = 0;
+
+    puts("Generating work...");
 
     Work w = {.f_state = 1 };
     f_init(w.f_gen);
@@ -130,15 +187,61 @@ int main(void)
     } while (work_length < sizeof work_gpu/sizeof work_gpu[0]
                 && f_next(&w.f_state, w.f_gen));
 
+    puts("Done generating work. Working on GPU...");
+
+    uint64_t work_unit_time = 0;
     __uint128_t gpu_time_start = time_begin();
     __asm__ __volatile__("":::"memory");
+    #if BENCH
+    for (size_t i = 0; i < work_length; ++i) {
+        __uint128_t t_start = time_begin();
+        __asm__ __volatile__("":::"memory");
+        work_gpu[i] = gpu_do_work(&work_gpu[i]);
+        __asm__ __volatile__("":::"memory");
+        work_unit_time += time_begin() - t_start;
+    }
+    #else
     gpu_compute(work_length, sizeof w, work_gpu);
+    #endif
     __asm__ __volatile__("":::"memory");
     double gpu_time = time_diff(gpu_time_start);
     gpu_destroy();
 
+    #if BENCH
+    printf("Done working on GPU. Average work unit time: %g\n",
+           .000000001*work_unit_time/work_length);
+    printf("Collecting GPU results was %g%% of total GPU work\n",
+           100.*t_gpu_cpu_work/(t_gpu_gpu_work + t_gpu_cpu_work));
+    puts("Working on CPU...");
+    #else
+    puts("Done working on GPU. Working on CPU...");
+    #endif
+
     __uint128_t cpu_time_start = time_begin();
     __asm__ __volatile__("":::"memory");
+    #if BENCH
+    for (size_t i = 0; i < work_length; ++i) {
+        Work work = work_cpu[i];
+        work_cpu[i].f_hardness = 1e10f;
+        do {
+            float f_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
+            float* f = f_mem + IIR_TAIL_LENGTH + BASE;
+            f_filter(f, work.f_gen);
+            float in_gain  = normalized_input_gain(f);
+            if (in_gain > MAX_IN_GAIN)
+                continue;
+            float out_gain = normalized_output_gain(f, in_gain);
+            work.f_hardness = f_hardness(f, out_gain, in_gain);
+            if (work.f_hardness < work_cpu[i].f_hardness) {
+                work_cpu[i] = work;
+                #if GPU_DEBUG
+                work_cpu[i].value1 = in_gain;
+                work_cpu[i].value2 = out_gain;
+                #endif
+            }
+        } while ((++work.f_index & (WORK_SIZE-1)) && f_next(&work.f_state, work.f_gen));
+    }
+    #else // only need to work once
     for (size_t i = 0; i < work_length; ++i) {
         float f_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
         float* f = f_mem + IIR_TAIL_LENGTH + BASE;
@@ -146,22 +249,39 @@ int main(void)
         float in_gain  = normalized_input_gain(f);
         float out_gain = normalized_output_gain(f, in_gain);
         work_cpu[i].f_hardness = f_hardness(f, out_gain, in_gain);
+        #if GPU_DEBUG
+        work_cpu[i].value1 = in_gain;
+        work_cpu[i].value2 = out_gain;
+        #endif
     }
+    #endif
     __asm__ __volatile__("":::"memory");
     double cpu_time = time_diff(cpu_time_start);
 
     float ratios_mean = 0.f;
     for (size_t i = 0; i < work_length; ++i)
         if (work_gpu[i].f_hardness < 1e10f && work_cpu[i].f_hardness < 1e10f)
+            #if 0 //GPU_DEBUG
+            ratios_mean += work_gpu[i].value1 / work_cpu[i].value1
+                + work_gpu[i].value2 / work_cpu[i].value2
+                ;
+            #else
             ratios_mean += work_gpu[i].f_hardness / work_cpu[i].f_hardness;
+            #endif
         // else ignore discarded values.
     ratios_mean /= work_length;
 
     bool failed = false;
+    printf("Total work count: %zu\n", w.f_index);
+    printf("Work length:      %zu\n", work_length);
+    #if BENCH
+    #else
     if (fabsf(1.f - ratios_mean) > .02f)
         failed = fprintf(stderr, "[FAILED] ratios mean test! Expected close to zero difference.\n");
     else
         printf("[PASSED] ratios mean test.\n");
+    #endif
+
     printf("GPU and CPU implementations have %g%% difference.\n", 100.f*fabsf(1.f - ratios_mean));
     if ( ! failed) {
         printf("CPU time: %g\n", cpu_time);

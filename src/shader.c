@@ -96,8 +96,11 @@ int main(void)
     printf("    \"#define IIR_POLES       %i\\n\"\n", IIR_POLES      );
     printf("    \"#define MAX_IN_GAIN     %g\\n\"\n", MAX_IN_GAIN    );
     printf("    \"#define CACHE_LINE_SIZE %i\\n\"\n", CACHE_LINE_SIZE);
-    printf("    \"#define WORK_SIZE       %i\\n\"\n", WORK_SIZE      );
+    printf("    \"#define GPU_WORK_SIZE   %i\\n\"\n", GPU_WORK_SIZE  );
     printf("    \"#define WORK_GROUP_SIZE %i\\n\"\n", WORK_GROUP_SIZE);
+    #ifdef GPU_DEBUG
+    printf("    \"#define GPU_DEBUG       %i\\n\"\n", GPU_DEBUG      );
+    #endif
     puts("    \"\\n\"");
 
     printf("    \"");

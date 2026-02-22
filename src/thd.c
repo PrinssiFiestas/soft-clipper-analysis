@@ -3,10 +3,9 @@
 
 #define TESTS // for THD unit tests
 // #define THD_PLOT // generate CSV describing THD as a function of input gain
-#define BENCH // benchmark
 // #define PLOT_IN_GAINS // to see that most in gains do fall well below 1.
 
-#ifdef BENCH
+#if BENCH
 size_t g_dft_coeff_calculation_count = 0;
 size_t g_max_secant_iterations = 0;
 size_t g_total_secant_iterations = 0;
@@ -32,7 +31,7 @@ float x_thd(const fixed_t x[T])
     size_t k = 0;
 
     for (; k < T/4 - SKIP; ++k) {
-        #ifdef BENCH
+        #if BENCH
         ++g_dft_coeff_calculation_count;
         #endif
         int64_t b = 0;
@@ -104,7 +103,7 @@ float normalized_input_gain(const float f[1 + BASE])
     size_t secant_iterations = 0;
     while (fabsf(y2) > .01f * THD_NORMALIZED) {
         secant_iterations++;
-        #ifdef BENCH
+        #if BENCH
         if (secant_iterations > g_max_secant_iterations)
             g_max_secant_iterations = secant_iterations;
         g_total_secant_iterations++;
@@ -144,7 +143,7 @@ int main(void)
     exit(0);
     #endif // PLOT_IN_GAINS
 
-    #ifdef BENCH
+    #if BENCH
     {
         int f_gen[1 + BASE];
         f_init(f_gen);
