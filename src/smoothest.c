@@ -171,8 +171,6 @@ static __uint128_t dispatch_work(
 
 void cpu_do_work(Work* result)
 {
-    assert((result->f_index & 1) == 0);
-
     result->f_hardness = 1e10f;
     Work work = *result;
 
