@@ -111,14 +111,31 @@ static uint64_t t_gpu_gpu_work; // actual work done on GPU
 
 Work gpu_do_work(const Work* in_work)
 {
+    static Work work_units[WORK_SIZE / GPU_WORK_SIZE];
+
     #if BENCH
     __uint128_t t_start = time_begin();
     __asm__ __volatile__("":::"memory");
     #endif
 
-    static Work work_units[WORK_SIZE / GPU_WORK_SIZE];
-    Work work = *in_work;
+    size_t result_index = 0;
     size_t work_length = 0;
+    #ifndef GPU_MAIN
+    size_t tries = 0;
+    try_work:;
+    if (tries++ > 2) {
+        fprintf(stderr, "GPU failed work at index %zu (global %llu) of %zu jobs.\n",
+                result_index, (unsigned long long)in_work->f_index, work_length);
+        fprintf(stderr, "Handing off work to CPU...\n\n\n");
+        extern void cpu_do_work(Work* result);
+        Work work = *in_work;
+        cpu_do_work(&work);
+        return work;
+    }
+    #endif
+    Work work = *in_work;
+    work.f_hardness = 0.f;
+    work_length = 0;
 
     do {
         if ((work.f_index & (GPU_WORK_SIZE - 1)) == 0)
@@ -137,10 +154,15 @@ Work gpu_do_work(const Work* in_work)
     t_gpu_gpu_work += t_gpu;
     #endif
 
-    size_t result_index = 0;
-    for (size_t i = 1; i < work_length; ++i)
+    result_index = 0;
+    for (size_t i = 0; i < work_length; ++i) {
+        #ifndef GPU_MAIN
+        if (work_units[i].f_hardness == 0.f) // shader interrupted
+            goto try_work;
+        #endif
         if (work_units[i].f_hardness < work_units[result_index].f_hardness)
             result_index = i;
+    }
 
     #if BENCH
     __asm__ __volatile__("":::"memory");
@@ -165,6 +187,7 @@ void gpu_destroy(void)
 #define WORK_INTERVAL 53 // somewhat random on purpose
 #endif
 
+#ifdef GPU_MAIN
 int main(void)
 {
     bool got_gpu = gpu_init();
@@ -189,7 +212,7 @@ int main(void)
 
     puts("Done generating work. Working on GPU...");
 
-    uint64_t work_unit_time = 0;
+    uint64_t work_unit_time = 0; (void)work_unit_time;
     __uint128_t gpu_time_start = time_begin();
     __asm__ __volatile__("":::"memory");
     #if BENCH
@@ -290,3 +313,4 @@ int main(void)
     }
     exit(failed);
 }
+#endif // GPU_MAIN

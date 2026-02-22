@@ -307,8 +307,8 @@ float normalized_input_gain()
     float y2 = y1;
     uint secant_iterations = 0;
     while (abs(y2) > .01 * THD_NORMALIZED) {
-        secant_iterations++;
-        if (secant_iterations > 10 || y1 == y0) {
+        secant_iterations++; // Note: less max iters than CPU to avoid GPU hang.
+        if (secant_iterations > 5 || y1 == y0) {
             if (y2 > 0.) // returning unfair normalization is ok.
                 return abs(x2);
             else // return high value that discards f.

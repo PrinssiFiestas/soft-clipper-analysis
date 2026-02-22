@@ -40,12 +40,14 @@ ifneq ($(GETCONF),)
 CFLAGS += -NCACHE_LINE_SIZE=$(CACHE_LINE_SIZE)
 endif
 
-SMOOTHEST_SRCS = src/thd.c src/cdf.c src/smoothest.c src/sequence.c
+SMOOTHEST_SRCS = src/thd.c src/cdf.c src/smoothest.c src/sequence.c src/gpu.c src/glad.c
+SMOOTHEST_LFLAGS = -lm -pthread -lX11 -lGLX -lGL
 
 smoothest:
 	@mkdir -p build
 	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
-	@$(CC) -o build/smoothest $(CFLAGS) -O3 -lm -pthread $(SMOOTHEST_SRCS) && ./build/smoothest
+	@$(CC) -o build/shader $(CFLAGS) src/shader.c src/glad.c -lX11 -lGLX -lGL && ./build/shader > ./build/shader_source.c
+	$(CC) -o build/smoothest $(CFLAGS) -O3 $(SMOOTHEST_SRCS) $(SMOOTHEST_LFLAGS) && ./build/smoothest
 
 sequence:
 	@mkdir -p build

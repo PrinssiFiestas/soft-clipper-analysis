@@ -63,9 +63,11 @@ typedef int fixed_t;
 #define WORK_SIZE (1 << 16)
 #endif
 
+#ifndef GPU_WORK_SIZE
 // Sequence length for each GPU work unit. Should be small to avoid GPU hang and
 // branching.
 #define GPU_WORK_SIZE (1 << 0)
+#endif
 
 #ifndef CACHE_LINE_SIZE
 #define CACHE_LINE_SIZE 64
@@ -444,8 +446,11 @@ __attribute__((unused)) static float* debug_derivative2(size_t length, float f[]
     return debug_buf2;
 }
 
+extern bool g_got_gpu;
+// NOTE: OpenGL context is thread local! Only call this in GPU thread!
 bool gpu_init(void);
 void gpu_compute(size_t buffer_length, size_t buffer_element_size, void* buffer);
+Work gpu_do_work(const Work* work);
 void gpu_destroy(void);
 
 #endif // SHARED_H_INCLUDED

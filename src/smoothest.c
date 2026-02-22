@@ -9,6 +9,8 @@
 _Atomic bool g_work_done = false;
 Work   g_work[NPROC];
 Worker g_workers[NPROC];
+Work   g_gpu_work;
+Worker g_gpu_worker;
 Work   g_result;
 
 // Total work amount.
@@ -17,7 +19,8 @@ extern uint64_t g_sequence_length;
 extern void* estimate_sequence_length(void* unused);
 __uint128_t g_total_time_start;
 
-static void* do_work(void* worker);
+static void* do_work(void* worker_id);
+static void* do_gpu_work(void* unused);
 static void* collect_results(void* result);
 static __uint128_t dispatch_work(uint64_t f_index, uint32_t f_state, int f_gen[1 + BASE]);
 
@@ -37,8 +40,13 @@ int main(void)
     Work backup = {0};
     if (backup_found && backup_fd != -1) {
         if (read(backup_fd, &backup, sizeof backup) != -1) {
-            g_result = backup;
-            puts("Found backup. Continuing where left off...");
+            if (backup.f_gen[1] != 0) {
+                g_result = backup;
+                puts("Found backup. Continuing where left off...");
+            } else {
+                backup_found = false;
+                puts("Ignoring empty backup.");
+            }
         } else {
             fprintf(stderr, "Could not read from %s: %s\n", backup_path, strerror(errno));
             puts("Backup not read, starting from beginning...");
@@ -52,7 +60,8 @@ int main(void)
         puts("Continuing without backing up...");
     }
 
-    pthread_t thrds[NPROC + 2];
+    pthread_t thrds[NPROC + 2], gpu_thread;
+    pthread_create(&gpu_thread, NULL, do_gpu_work, NULL);
     pthread_create(&thrds[NPROC + 0], NULL, estimate_sequence_length, NULL);
     pthread_create(&thrds[NPROC + 1], NULL, collect_results, (void*)(intptr_t)backup_fd);
     for (size_t i = 0; i < NPROC; ++i)
@@ -76,6 +85,8 @@ int main(void)
     g_work_done = true;
     for (size_t i = 0; i < sizeof thrds / sizeof thrds[0]; ++i)
         pthread_join(thrds[i], NULL);
+    if (g_got_gpu)
+        pthread_join(gpu_thread, NULL);
 
     double total_time = time_diff(g_total_time_start);
     if (get_date(time_buf) != NULL)
@@ -136,21 +147,47 @@ static __uint128_t dispatch_work(
     __uint128_t sleep_time = 0;
 
     try_dispatch:
-    for (size_t i = 0; i < NPROC; ++i) {
-        if (g_workers[i] == WAITING) {
-            g_work[i].f_index = f_index;
-            g_work[i].f_state = f_state;
-            memcpy(g_work[i].f_gen, f_gen, sizeof g_work[i].f_gen);
-            g_workers[i] = BUSY;
-            return sleep_time;
-        }
+    if (g_got_gpu && g_gpu_worker == WAITING) {
+        g_gpu_work.f_index = f_index;
+        g_gpu_work.f_state = f_state;
+        memcpy(g_gpu_work.f_gen, f_gen, sizeof g_gpu_work.f_gen);
+        g_gpu_worker = BUSY;
+        return sleep_time;
+    }
+    for (size_t i = 0; i < NPROC; ++i) if (g_workers[i] == WAITING) {
+        g_work[i].f_index = f_index;
+        g_work[i].f_state = f_state;
+        memcpy(g_work[i].f_gen, f_gen, sizeof g_work[i].f_gen);
+        g_workers[i] = BUSY;
+        return sleep_time;
     }
     __uint128_t sleep_start = time_begin();
-    usleep(100); // TODO avoid sleep if there was work to be dispatched
+    usleep(100);
     sleep_time += time_begin() - sleep_start;
     if ( ! g_work_done)
         goto try_dispatch;
     return sleep_time;
+}
+
+void cpu_do_work(Work* result)
+{
+    assert((result->f_index & 1) == 0);
+
+    result->f_hardness = 1e10f;
+    Work work = *result;
+
+    do { // work
+        float f_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
+        float* f = f_mem + IIR_TAIL_LENGTH + BASE;
+        f_filter(f, work.f_gen);
+        float in_gain  = normalized_input_gain(f);
+        if (in_gain > MAX_IN_GAIN)
+            continue;
+        float out_gain = normalized_output_gain(f, in_gain);
+        work.f_hardness = f_hardness(f, out_gain, in_gain);
+        if (work.f_hardness < result->f_hardness)
+            *result = work;
+    } while ((++work.f_index & (WORK_SIZE-1)) && f_next(&work.f_state, work.f_gen));
 }
 
 static void* do_work(void* worker_id)
@@ -165,26 +202,34 @@ static void* do_work(void* worker_id)
             else
                 usleep(100);
 
-        Work* result = &g_work[(uintptr_t)worker_id];
-        result->f_hardness = 1e10f;
-        Work work = *result;
-
-        do { // work
-            float f_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH];
-            float* f = f_mem + IIR_TAIL_LENGTH + BASE;
-            f_filter(f, work.f_gen);
-            float in_gain  = normalized_input_gain(f);
-            if (in_gain > MAX_IN_GAIN)
-                continue;
-            float out_gain = normalized_output_gain(f, in_gain);
-            work.f_hardness = f_hardness(f, out_gain, in_gain);
-            if (work.f_hardness < result->f_hardness)
-                *result = work;
-        } while ((++work.f_index & (WORK_SIZE-1)) && f_next(&work.f_state, work.f_gen));
-
+        cpu_do_work(&g_work[(uintptr_t)worker_id]);
         *me = GOT_RESULT;
     }
 
+    return NULL;
+}
+
+static void* do_gpu_work(void*_)
+{
+    (void)_;
+    if ( ! gpu_init()) {
+        puts("No GPU available, continuing on CPU only...");
+        return NULL;
+    }
+
+    Worker* me = &g_gpu_worker;
+
+    while ( ! g_work_done && g_got_gpu)
+    {
+        while (*me != BUSY)
+            if (g_work_done || ! g_got_gpu)
+                return NULL;
+            else
+                usleep(100);
+
+        g_gpu_work = gpu_do_work(&g_gpu_work);
+        *me = GOT_RESULT;
+    }
     return NULL;
 }
 
@@ -227,13 +272,17 @@ static void* collect_results(void*_backup_fd)
     int backup_fd = (intptr_t)_backup_fd;
 
     try_collect_result:
-    for (size_t i = 0; i < NPROC; ++i) {
-        if (g_workers[i] == GOT_RESULT) {
-            if (g_work[i].f_hardness < g_result.f_hardness)
-                g_result = g_work[i];
-            g_workers[i] = WAITING;
-            progress += WORK_SIZE;
-        }
+    if (g_got_gpu && g_gpu_worker == GOT_RESULT) {
+        if (g_gpu_work.f_hardness < g_result.f_hardness)
+            g_result = g_gpu_work;
+        g_gpu_worker = WAITING;
+        progress += WORK_SIZE;
+    }
+    for (size_t i = 0; i < NPROC; ++i) if (g_workers[i] == GOT_RESULT) {
+        if (g_work[i].f_hardness < g_result.f_hardness)
+            g_result = g_work[i];
+        g_workers[i] = WAITING;
+        progress += WORK_SIZE;
     }
     if (g_got_sequence_length)
         report_time_estimate(progress, init_progress);
@@ -249,12 +298,14 @@ static void* collect_results(void*_backup_fd)
         }
     }
 
-    usleep(100); // TODO avoid sleeping if got any results
+    usleep(100);
     if ( ! g_work_done)
         goto try_collect_result;
 
-    for (size_t i = 0; i < NPROC; ++i) // collect final work.
-        if (g_workers[i] != WAITING)
-            goto try_collect_result;
+    // Collect final work.
+    if (g_got_gpu && g_gpu_worker != WAITING)
+        goto try_collect_result;
+    for (size_t i = 0; i < NPROC; ++i) if (g_workers[i] != WAITING)
+        goto try_collect_result;
     return NULL;
 }
