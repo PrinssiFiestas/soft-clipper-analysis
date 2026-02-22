@@ -22,7 +22,9 @@ __uint128_t g_total_time_start;
 static void* do_work(void* worker_id);
 static void* do_gpu_work(void* unused);
 static void* collect_results(void* result);
-static __uint128_t dispatch_work(uint64_t f_index, uint32_t f_state, int f_gen[1 + BASE]);
+static void  dispatch_work(uint64_t f_index, uint32_t f_state, int f_gen[1 + BASE]);
+
+struct { Work result; Work last; } backup;
 
 int main(void)
 {
@@ -37,12 +39,12 @@ int main(void)
     if ( ! backup_found)
         mkdir("cache", 0755);
     int backup_fd = open(backup_path, O_RDWR | O_CREAT, 0666);
-    Work backup = {0};
     if (backup_found && backup_fd != -1) {
         if (read(backup_fd, &backup, sizeof backup) != -1) {
-            if (backup.f_gen[1] != 0) {
-                g_result = backup;
-                puts("Found backup. Continuing where left off...");
+            if (backup.last.f_gen[1] != 0) {
+                g_result = backup.result;
+                printf("Found backup. Continuing at index %llu where left off...\n",
+                       (unsigned long long)backup.last.f_index);
             } else {
                 backup_found = false;
                 puts("Ignoring empty backup.");
@@ -72,14 +74,13 @@ int main(void)
     uint32_t f_state = 1;
     uint64_t f_index = 0;
     if (backup_found && backup_fd != -1) {
-        memcpy(f_gen, backup.f_gen, sizeof f_gen);
-        f_state = backup.f_state;
-        f_index = backup.f_index;
+        memcpy(f_gen, backup.last.f_gen, sizeof f_gen);
+        f_state = backup.last.f_state;
+        f_index = backup.last.f_index;
     }
-    __uint128_t dispatch_sleep_time = 0;
     do { // generate work
         if ((f_index & (WORK_SIZE - 1)) == 0)
-            dispatch_sleep_time += dispatch_work(f_index, f_state, f_gen);
+            dispatch_work(f_index, f_state, f_gen);
     } while (++f_index, f_next(&f_state, f_gen));
 
     g_work_done = true;
@@ -95,8 +96,6 @@ int main(void)
         printf("Total time taken%s: %s\n",
                total_time < 60*60*24*30 ? "" : "(roughly)",
                time_buf);
-    printf("Dispatcher was asleep %g%% of total time.\n\n",
-           100. * ((double)dispatch_sleep_time/1000000000.) / total_time);
 
     printf("Found smoothest function.\n");
     printf("Smoothest function index: %llu\n", (unsigned long long)g_result.f_index);
@@ -141,32 +140,27 @@ int main(void)
         fprintf(stderr, "Failed writing result binary to %s: %s\n", result_bin_path, strerror(errno));
 }
 
-static __uint128_t dispatch_work(
+static void dispatch_work(
     uint64_t f_index, uint32_t f_state, int f_gen[restrict 1 + BASE])
 {
-    __uint128_t sleep_time = 0;
-
     try_dispatch:
     if (g_got_gpu && g_gpu_worker == WAITING) {
         g_gpu_work.f_index = f_index;
         g_gpu_work.f_state = f_state;
         memcpy(g_gpu_work.f_gen, f_gen, sizeof g_gpu_work.f_gen);
         g_gpu_worker = BUSY;
-        return sleep_time;
+        return;
     }
     for (size_t i = 0; i < NPROC; ++i) if (g_workers[i] == WAITING) {
         g_work[i].f_index = f_index;
         g_work[i].f_state = f_state;
         memcpy(g_work[i].f_gen, f_gen, sizeof g_work[i].f_gen);
         g_workers[i] = BUSY;
-        return sleep_time;
+        return;
     }
-    __uint128_t sleep_start = time_begin();
     usleep(100);
-    sleep_time += time_begin() - sleep_start;
     if ( ! g_work_done)
         goto try_dispatch;
-    return sleep_time;
 }
 
 void cpu_do_work(Work* result)
@@ -249,10 +243,14 @@ static void report_time_estimate(uint64_t progress_counter, uint64_t init_progre
 
     char animation[4][4] = {"   ", ".  ", ".. ", "..."};
     char buf[TIME_STR_BUF_SIZE];
-    double progress = (double)progress_counter/(g_sequence_length - init_progress);
-    double smoothing = t == 0. ? -1. : .9; // bias up at beginning
-    if (progress > 0)
-        t = (1. - smoothing) * (time/progress - time) + smoothing * t;
+    double progress = (double)progress_counter / g_sequence_length;
+    double time_progress = (double)(progress_counter - init_progress)
+        / (g_sequence_length - init_progress);
+    double smoothing = t <= 0. ? -1. : .9; // bias up at beginning
+    if (time_progress > 0)
+        t = (1. - smoothing) * (time/time_progress - time) + smoothing * t;
+    if (isnan(t))
+        t = 0.;
 
     printf("\e[2A"); // cursor up
     printf("                                                                         \r");
@@ -265,29 +263,45 @@ static void report_time_estimate(uint64_t progress_counter, uint64_t init_progre
 
 static void* collect_results(void*_backup_fd)
 {
-    uint64_t init_progress = g_result.f_index;
-    uint64_t progress = 0;
+    uint64_t progress = backup.last.f_index;
+    uint64_t init_progress = progress;
     int backup_fd = (intptr_t)_backup_fd;
+    __uint128_t backup_timer = g_total_time_start;
+    bool got_backup = false;
+    bool should_backup = false;
 
     try_collect_result:
+    should_backup = time_diff(backup_timer) >= 5.;
+
     if (g_got_gpu && g_gpu_worker == GOT_RESULT) {
         if (g_gpu_work.f_hardness < g_result.f_hardness)
             g_result = g_gpu_work;
+        if (should_backup) {
+            backup.last = g_gpu_work;
+            got_backup = true;
+        }
         g_gpu_worker = WAITING;
         progress += WORK_SIZE;
     }
     for (size_t i = 0; i < NPROC; ++i) if (g_workers[i] == GOT_RESULT) {
         if (g_work[i].f_hardness < g_result.f_hardness)
             g_result = g_work[i];
+        if (should_backup) {
+            backup.last = g_work[i];
+            got_backup = true;
+        }
         g_workers[i] = WAITING;
         progress += WORK_SIZE;
     }
     if (g_got_sequence_length)
         report_time_estimate(progress, init_progress);
 
-    if (backup_fd != -1) {
+    if (backup_fd != -1 && should_backup && got_backup) {
+        got_backup = false;
+        backup_timer = time_begin();
+        backup.result = g_result;
         if (lseek(backup_fd, 0, SEEK_SET) == -1 ||
-            write(backup_fd, &g_result, sizeof g_result) == -1)
+            write(backup_fd, &backup, sizeof backup) == -1)
         {
             fprintf(stderr, "Could not write to backup file: %s\n", strerror(errno));
             puts("Continuing without backup...");

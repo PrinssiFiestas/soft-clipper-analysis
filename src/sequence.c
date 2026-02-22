@@ -39,8 +39,8 @@ void* estimate_sequence_length(void*_)
             puts("Continuing sequence length estimation without caching...");
         } else if (strncmp(cache_contents, CACHE_STR, sizeof CACHE_STR - 1) == 0) {
             printf("Found completed sequence length cache. Delete %s for timing.\n", cache_path);
-            printf("Sequence length: %s\n", (char*)cache_contents + sizeof CACHE_STR - 1);
-            g_sequence_length = *count;
+            printf("Sequence length: %s\n", (char*)cache_contents + sizeof CACHE_STR-sizeof"");
+            g_sequence_length = atoll((char*)cache_contents + sizeof CACHE_STR-sizeof"");
             g_got_sequence_length = true;
             return NULL;
         } else if (cache_found) {

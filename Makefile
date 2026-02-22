@@ -1,4 +1,4 @@
-CC = gcc
+CC = clang
 CFLAGS = -Wall -Wextra -ggdb3 -gdwarf -Iinclude -DBASE=$(BASE) -march=native -fno-math-errno
 # Remember to not add -O3 by default, we may want to plot in Seergdb.
 
@@ -47,7 +47,7 @@ smoothest:
 	@mkdir -p build
 	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
 	@$(CC) -o build/shader $(CFLAGS) src/shader.c src/glad.c -lX11 -lGLX -lGL && ./build/shader > ./build/shader_source.c
-	$(CC) -o build/smoothest $(CFLAGS) -O3 $(SMOOTHEST_SRCS) $(SMOOTHEST_LFLAGS) && ./build/smoothest
+	@$(CC) -o build/smoothest $(CFLAGS) -O3 $(SMOOTHEST_SRCS) $(SMOOTHEST_LFLAGS) && ./build/smoothest
 
 sequence:
 	@mkdir -p build
