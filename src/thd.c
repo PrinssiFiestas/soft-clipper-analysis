@@ -108,12 +108,9 @@ float normalized_input_gain(const float f[1 + BASE])
             g_max_secant_iterations = secant_iterations;
         g_total_secant_iterations++;
         #endif
-        if (secant_iterations > 10 || y1 == y0) {
-            if (y2 > 0.f) // returning unfair normalization is ok.
-                return fabsf(x2);
-            else // return high value that discards f.
-                return 1e10f;
-        }
+        if (secant_iterations > 10 || y1 == y0)
+            return 1e10f;
+
         x2 = x1 - y1 * (x1 - x0) / (y1 - y0);
         y2 = f_thd(f, x2) - THD_NORMALIZED;
         x0 = x1;

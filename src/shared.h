@@ -404,6 +404,8 @@ static inline float f_hardness(const float f[restrict], float out_gain, float in
         min = fminf(min, d1 - d0);
     }
     float hardness = -out_gain * in_gain * in_gain * min * BASE * BASE;
+    if (hardness <= .1) // impossible, bug somewhere
+        return 1e20;
     if (in_gain <= 1.f) // all data included, can trust result.
         return hardness;
     // else check if we have to extrapolate.

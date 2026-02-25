@@ -168,8 +168,10 @@ Work gpu_do_work(const Work* in_work)
         if (work_units[i].f_hardness == 0.f) // shader interrupted
             goto try_work;
         #endif
-        if (work_units[i].f_hardness < work_units[result_index].f_hardness)
+        if (work_units[i].f_hardness < work_units[result_index].f_hardness
+            && work_units[i].f_hardness > .1f) {
             result_index = i;
+        }
     }
 
     #if BENCH

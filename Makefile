@@ -27,6 +27,7 @@ help:
 	@echo '  find BASE=<base> [CUSTOM=<function>] Find differences of functions from generated ones.'
 	@echo '  shader BASE=<base>                   Check shader compilation errors and stringify shader.'
 	@echo '  test_gpu                             Test if GPU implementation matches CPU implementation.'
+	@echo '  analyze                              Analyze results.'
 	@echo '  clean                                Delete build artifacts.'
 	@exit 1
 
@@ -100,6 +101,11 @@ test_gpu:
 	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
 	@$(CC) -o build/shader $(CFLAGS) src/shader.c src/glad.c -lX11 -lGLX -lGL && ./build/shader > ./build/shader_source.c
 	@$(CC) -o build/testgpu $(CFLAGS) -O3 -DGPU_MAIN src/gpu.c src/glad.c src/thd.c src/cdf.c -lm -lX11 -lGLX -lGL && ./build/testgpu
+
+analyze:
+	@mkdir -p build
+	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
+	@$(CC) -o build/analyze $(CFLAGS) -lm src/thd.c src/cdf.c src/analysis.c && ./build/analyze
 
 clean:
 	rm -rf build

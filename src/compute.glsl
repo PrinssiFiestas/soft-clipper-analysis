@@ -308,12 +308,9 @@ float normalized_input_gain()
     uint secant_iterations = 0;
     while (abs(y2) > .01 * THD_NORMALIZED) {
         secant_iterations++; // Note: less max iters than CPU to avoid GPU hang.
-        if (secant_iterations > 5 || y1 == y0) {
-            if (y2 > 0.) // returning unfair normalization is ok.
-                return abs(x2);
-            else // return high value that discards f.
+        if (secant_iterations > 6 || y1 == y0)
                 return 1e10;
-        }
+
         x2 = x1 - y1 * (x1 - x0) / (y1 - y0);
         y2 = f_thd(x2) - THD_NORMALIZED;
         x0 = x1;
@@ -352,6 +349,8 @@ float f_hardness(float out_gain, float in_gain)
         d_min = min(d_min, d1 - d0);
     }
     float hardness = -out_gain * in_gain * in_gain * d_min * BASE * BASE;
+    if (hardness <= .1) // impossible, bug somewhere
+        return 1e20;
     if (in_gain <= 1.) // all data included, can trust result.
         return hardness;
     // else check if we have to extrapolate.

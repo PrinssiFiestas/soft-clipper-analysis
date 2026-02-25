@@ -256,7 +256,9 @@ static void report_time_estimate(uint64_t progress_counter, uint64_t init_progre
     printf("                                                                         \r");
     printf("Estimated time remaining: %s\n", time_str(buf, t));
     printf("                                                                         \r");
-    printf("Working%s %.2f%%\n", animation[(int)(3.*time) & 3], 100.*progress);
+    printf("Working%s %.2f%% | Current smoothest: %.3f hardness\n",
+           animation[(int)(3.*time) & 3], 100.*progress,
+           g_result.f_hardness);
 
     last_call = time_begin();
 }
@@ -297,6 +299,10 @@ static void* collect_results(void*_backup_fd)
         report_time_estimate(progress, init_progress);
 
     if (backup_fd != -1 && should_backup && got_backup) {
+        if (g_result.f_hardness < 0.1f) { // TODO remove this!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            fprintf(stderr, "Impossible hardness detected, exiting...\n");
+            exit(EXIT_FAILURE);
+        }
         got_backup = false;
         backup_timer = time_begin();
         backup.result = g_result;
