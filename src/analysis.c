@@ -20,6 +20,15 @@ int main(int argc, char* argv[])
     float out_gain = normalized_output_gain(f, in_gain);
     float hardness = f_hardness(f, out_gain, in_gain);
 
+    // To be plotted in debugger.
+    float f_normalized_mem[BASE + 1 + BASE];
+    float* f_normalized = f_normalized_mem + BASE;
+    for (int i = -BASE; i <= BASE; ++i) {
+        float x = (float)i / BASE;
+        f_normalized[i] = out_gain * f_call(f, in_gain*x);
+    }
+    (void)f_normalized;
+
     printf("In gain:  %g\n", in_gain);
     printf("Out gain: %g\n", out_gain);
     printf("Hardness: %g\n", hardness);
