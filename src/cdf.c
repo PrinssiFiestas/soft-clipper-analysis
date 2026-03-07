@@ -105,5 +105,14 @@ int main(void)
         printf("%i, %i\n", i,
             hg_gaussian[0]*hg_from_probit[i] - hg_from_probit[0]*hg_gaussian[i]);
     #endif // TEST_PROBIT
+
+    #if //PROBIT_RMS
+    float probit_rms = 0.f;
+    const float dt = 8e-6f;
+    for (float t = dt; t <= 1.f - dt; t += dt)
+        probit_rms += probitf(t)*probitf(t);
+    probit_rms *= dt;
+    printf("Probit RMS: %g\n", probit_rms); // 1.00057
+    #endif
 }
 #endif // CDF_MAIN
