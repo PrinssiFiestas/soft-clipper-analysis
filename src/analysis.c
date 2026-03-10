@@ -3,7 +3,7 @@
 
 int main(int argc, char* argv[])
 {
-    const char* result_path = "results/smoothest" BASE_STR ".bin";
+    const char* result_path = "results/smoothest" HFC_STR BASE_STR ".bin";
     if (argc > 1)
         result_path = argv[1];
     FILE* result_file = fopen(result_path, "rb");
@@ -46,7 +46,7 @@ int main(int argc, char* argv[])
     }
     blunter_diff[BASE + 1] = blunter_out_gain;
     if (argc == 1) {
-        const char* diff_path = "blunter-smoothest" BASE_STR "-diff.csv";
+        const char* diff_path = "blunter-smoothest" HFC_STR BASE_STR "-diff.csv";
         FILE* diff_file = fopen(diff_path, "wb");
         if (diff_file != NULL)  {
             for (size_t i = 0; i <= BASE + 1; ++i)

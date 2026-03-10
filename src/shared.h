@@ -24,6 +24,12 @@ typedef int fixed_t;
 #define XSTR(S) STR(S)
 #define BASE_STR XSTR(BASE)
 
+#if HFC
+#define HFC_STR "HFC"
+#else
+#define HFC_STR ""
+#endif
+
 // Number of samples. Should be at least 2*BASE to fit a full sinusoid.
 // Bigger makes DFT much more accurate, but clearly needs more processing time.
 // Does not need to be a power of two, we use DFT instead of FFT.
@@ -454,5 +460,8 @@ bool gpu_init(void);
 void gpu_compute(size_t buffer_length, size_t buffer_element_size, void* buffer);
 Work gpu_do_work(const Work* work);
 void gpu_destroy(void);
+
+// Maximum of change of high frequency content (HFC) of f.
+float f_hfc_max_change(float f[], float out_gain, float in_gain);
 
 #endif // SHARED_H_INCLUDED

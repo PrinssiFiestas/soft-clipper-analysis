@@ -34,7 +34,7 @@ int main(void)
     if (get_date(time_buf) != NULL)
         printf("Starting work on %s\n", time_buf);
 
-    const char* backup_path = "cache/backup" BASE_STR ".cache";
+    const char* backup_path = "cache/backup" HFC_STR BASE_STR ".cache";
     bool backup_found = access(backup_path, F_OK) == 0;
     if ( ! backup_found)
         mkdir("cache", 0755);
@@ -109,7 +109,7 @@ int main(void)
 
     if (access("results", F_OK) != 0)
         mkdir("results", 0755);
-    const char* result_csv_path = "results/smoothest" BASE_STR ".csv";
+    const char* result_csv_path = "results/smoothest" HFC_STR BASE_STR ".csv";
     FILE* result_csv_file;
     while ((result_csv_file = fopen(result_csv_path, "wb")) == NULL) {
         fprintf(stderr, "Failed opening result file %s: %s\n", result_csv_path, strerror(errno));
@@ -127,7 +127,7 @@ int main(void)
     else
         fprintf(stderr, "Failed writing result to %s: %s\n", result_csv_path, strerror(errno));
 
-    const char* result_bin_path = "results/smoothest" BASE_STR ".bin";
+    const char* result_bin_path = "results/smoothest" HFC_STR BASE_STR ".bin";
     FILE* result_bin_file;
     while ((result_bin_file = fopen(result_bin_path, "wb")) == NULL) {
         fprintf(stderr, "Failed opening binary result file %s: %s\n", result_bin_path, strerror(errno));
@@ -176,7 +176,11 @@ void cpu_do_work(Work* result)
         if (in_gain > MAX_IN_GAIN)
             continue;
         float out_gain = normalized_output_gain(f, in_gain);
+        #if HFC
+        work.f_hardness = f_hfc_max_change(f, out_gain, in_gain);
+        #else
         work.f_hardness = f_hardness(f, out_gain, in_gain);
+        #endif
         if (work.f_hardness < result->f_hardness)
             *result = work;
     } while ((++work.f_index & (WORK_SIZE-1)) && f_next(&work.f_state, work.f_gen));
@@ -204,6 +208,9 @@ static void* do_work(void* worker_id)
 static void* do_gpu_work(void*_)
 {
     (void)_;
+    #if HFC // shader not implemented.
+    return NULL;
+    #endif
     if ( ! gpu_init()) {
         puts("No GPU available, continuing on CPU only...");
         return NULL;
@@ -299,10 +306,6 @@ static void* collect_results(void*_backup_fd)
         report_time_estimate(progress, init_progress);
 
     if (backup_fd != -1 && should_backup && got_backup) {
-        if (g_result.f_hardness < 0.1f) { // TODO remove this!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            fprintf(stderr, "Impossible hardness detected, exiting...\n");
-            exit(EXIT_FAILURE);
-        }
         got_backup = false;
         backup_timer = time_begin();
         backup.result = g_result;

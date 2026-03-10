@@ -2,6 +2,10 @@ CC = gcc
 CFLAGS = -Wall -Wextra -ggdb3 -gdwarf -Iinclude -DBASE=$(BASE) -march=native -fno-math-errno
 # Remember to not add -O3 by default, we may want to plot in Seergdb.
 
+ifneq ($(HFC),)
+CFLAGS += "-DHFC=$(HFC)"
+endif
+
 ifneq ($(COUNT),)
 CFLAGS += "-DCOUNT=$(COUNT)"
 endif
@@ -16,7 +20,7 @@ endif
 
 help:
 	@echo 'Targets'
-	@echo '  smoothest BASE<base>                 Find the smoothest clipper with precision BASE.'
+	@echo '  smoothest BASE=<base> [HFC=<1|0>]    Find the smoothest clipper with precision BASE.'
 	@echo '  sequence BASE=<base> [COUNT=<1|0>]   Print full sequence of functions of a given BASE.'
 	@echo '  test_sequence BASE=<base>            Count and test all possible sequences of a given base.'
 	@echo '  sines BASE=<base>                    Generate a table of sines of multiples of frequencies.'
@@ -27,7 +31,7 @@ help:
 	@echo '  find BASE=<base> [CUSTOM=<function>] Find differences of functions from generated ones.'
 	@echo '  shader BASE=<base>                   Check shader compilation errors and stringify shader.'
 	@echo '  test_gpu                             Test if GPU implementation matches CPU implementation.'
-	@echo '  analyze                              Analyze results.'
+	@echo '  analyze BASE=<base> [HFC=<1|0>]      Analyze results.'
 	@echo '  hfc BASE=<base>                      Compare hardness to maximum change in HFC.'
 	@echo '  clean                                Delete build artifacts.'
 	@exit 1
@@ -42,7 +46,7 @@ ifneq ($(GETCONF),)
 CFLAGS += -NCACHE_LINE_SIZE=$(CACHE_LINE_SIZE)
 endif
 
-SMOOTHEST_SRCS = src/thd.c src/cdf.c src/smoothest.c src/sequence.c src/gpu.c src/glad.c
+SMOOTHEST_SRCS = src/thd.c src/cdf.c src/smoothest.c src/sequence.c src/gpu.c src/glad.c src/hfc.c
 SMOOTHEST_LFLAGS = -lm -pthread -lX11 -lGLX -lGL
 
 smoothest:
