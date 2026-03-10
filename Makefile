@@ -28,6 +28,7 @@ help:
 	@echo '  shader BASE=<base>                   Check shader compilation errors and stringify shader.'
 	@echo '  test_gpu                             Test if GPU implementation matches CPU implementation.'
 	@echo '  analyze                              Analyze results.'
+	@echo '  hfc BASE=<base>                      Compare hardness to maximum change in HFC.'
 	@echo '  clean                                Delete build artifacts.'
 	@exit 1
 
@@ -106,6 +107,11 @@ analyze:
 	@mkdir -p build
 	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
 	@$(CC) -o build/analyze $(CFLAGS) -lm src/thd.c src/cdf.c src/analysis.c && ./build/analyze
+
+hfc:
+	@mkdir -p build
+	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
+	@$(CC) -o build/hfc $(CFLAGS) -lm -O3 -DHFC_MAIN src/thd.c src/cdf.c src/hfc.c && ./build/hfc > data.csv
 
 clean:
 	rm -rf build
