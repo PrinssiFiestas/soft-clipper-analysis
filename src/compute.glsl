@@ -1,6 +1,9 @@
 #version 430 core
 #line 3
 
+// TODO: it turned out that this shader does not improve performance
+// significantly. Probably should just remove it in favor of determinism.
+
 #define PI 3.14159265359
 #define INT_MAX 2147483647
 #define INT_MIN (-INT_MAX - 1)

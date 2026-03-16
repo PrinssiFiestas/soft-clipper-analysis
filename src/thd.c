@@ -101,7 +101,7 @@ float normalized_input_gain(const float f[1 + BASE])
     float x2 = x1;
     float y2 = y1;
     size_t secant_iterations = 0;
-    while (fabsf(y2) > .01f * THD_NORMALIZED) {
+    while (fabsf(y2) > .001f * THD_NORMALIZED) {
         secant_iterations++;
         #if BENCH
         if (secant_iterations > g_max_secant_iterations)

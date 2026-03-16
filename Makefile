@@ -32,7 +32,7 @@ help:
 	@echo '  shader BASE=<base>                   Check shader compilation errors and stringify shader.'
 	@echo '  test_gpu                             Test if GPU implementation matches CPU implementation.'
 	@echo '  analyze BASE=<base> [HFC=<1|0>]      Analyze results.'
-	@echo '  hfc BASE=<base>                      Compare hardness to maximum change in HFC.'
+	@echo '  hfc BASE=<base> [PRECISE=<1|0>]      Compare hardness to maximum change in HFC.'
 	@echo '  clean                                Delete build artifacts.'
 	@exit 1
 
@@ -112,10 +112,16 @@ analyze:
 	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
 	@$(CC) -o build/analyze $(CFLAGS) -lm src/thd.c src/cdf.c src/analysis.c && ./build/analyze
 
+ifeq ($(PRECISE),1)
+DHFC_MAIN = -DHFC_PRECISE_MAIN
+else
+DHFC_MAIN = -DHFC_MAIN
+endif
+
 hfc:
 	@mkdir -p build
 	@$(CC) -o build/synthesis $(CFLAGS) -lm src/synthesis.c && ./build/synthesis > build/sines.c
-	@$(CC) -o build/hfc $(CFLAGS) -lm -O3 -DHFC_MAIN src/thd.c src/cdf.c src/hfc.c && ./build/hfc > data.csv
+	@$(CC) -o build/hfc $(CFLAGS) -lm -fopenmp -O3 $(DHFC_MAIN) src/thd.c src/cdf.c src/hfc.c && ./build/hfc > data.csv
 
 clean:
 	rm -rf build
