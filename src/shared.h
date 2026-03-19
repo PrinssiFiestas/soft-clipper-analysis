@@ -159,7 +159,7 @@ static inline bool f_next(uint32_t* f_state, int f[1 + BASE])
     if (f[*i] < BASE) { // flush from next
         ++*i;
     }
-    else do { // flush from left
+    else do { // find from where to flush
         --*i;
         d1 = f[*i-0] - f[*i-1];
         d2 = f[*i-1] - f[*i-1-(*i>1)];

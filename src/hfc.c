@@ -212,7 +212,7 @@ float soft98(float x) { return softf(2.f*x, .98f, 1.f); }
 float soft99(float x) { return softf(2.f*x, .99f, 1.f); }
 float soft00(float x) { return softf(2.f*x, 1.0f, 1.f); }
 
-#if 1
+#if 0
 float(*fs[])(float x) = {
     atanf2,
     asinhf2,
@@ -267,8 +267,6 @@ float f_precise_hfc(float(*f)(float x), float out_gain, float in_gain)
 
 float f_precise_hfc_hardness(float(*f)(float x), float out_gain, float in_gain)
 {
-    //return f_precise_hfc(f, out_gain, in_gain);
-
     float hfc_diff_max = 0.f;
     const float da = 1.f/128.f;
     #if 0 // filtering
@@ -321,10 +319,13 @@ int main(void)
             fprintf(stderr, "Warning: skipping %zu: HFC hardness %f too high.\n", i, hfc_hardness);
             continue;
         }
-        x[i] = i;
+        #if 1 // softness
         x[i] = 1.f/hardness;
-        y[i] = 1.f/hardness;
         y[i] = 1.f/hfc_hardness;
+        #else // hardness
+        x[i] = hardness;
+        y[i] = hfc_hardness;
+        #endif
     }
     for (size_t i = 0; i < sizeof fs / sizeof fs[0]; ++i)
         printf("%f, %f\n", x[i], y[i]);

@@ -232,19 +232,24 @@ int main(void)
         blunter_diff_sum += blunter_diff_buf[i];
         printf("%zu, %f\n", i, blunter_diff_buf[i]);
     }
-    printf("%i, %f\n", 1 + BASE, blunter_diff_sum);
     for (size_t i = start; i < 1 + BASE; ++i) {
         arctan_diff_sum += arctan_diff_buf[i];
         printf("%zu, %f\n", i, arctan_diff_buf[i]);
     }
-    printf("%i, %f\n", 1 + BASE, arctan_diff_sum);
     for (size_t i = start; i < 1 + BASE; ++i) {
         logistic_diff_sum += logistic_diff_buf[i];
         printf("%zu, %f\n", i, logistic_diff_buf[i]);
     }
+    #if 0 // sum of differences
+    printf("%i, %f\n", 1 + BASE, blunter_diff_sum);
+    printf("%i, %f\n", 1 + BASE, arctan_diff_sum);
     printf("%i, %f\n", 1 + BASE, logistic_diff_sum);
     printf("%i, %f\n", 1 + BASE+1,
            (blunter_diff_sum + arctan_diff_sum + logistic_diff_sum)/3);
+    #endif
+    #if 0 // mean of differences
+    printf("%i, %f\n", 1 + BASE+2, ((blunter_diff_sum + arctan_diff_sum + logistic_diff_sum)/3)/BASE);
+    #endif
 
     // Values for debugging.
     (void)blunter_index;
@@ -271,7 +276,7 @@ int main(void)
     float logistic_hardness = f_hardness(
         logistic_gen_filtered, logistic_gen_output_gain, logistic_gen_input_gain);
 
-    #if 1//PRINT_HARNDESS_RATIOS
+    #if 0 // print hardness ratios
     fprintf(stderr, "Ha / HB = %g\n", arctan_hardness / blunter_hardness);
     fprintf(stderr, "Hl / HB = %g\n", logistic_hardness / blunter_hardness);
 
