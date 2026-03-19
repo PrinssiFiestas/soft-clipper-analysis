@@ -1,6 +1,6 @@
 # Soft Clipper Analysis
 
-This repository contains experiments for [our study about clipping softness](https://lorenzofiestas.dev/articles/quantifying-clipping-softness/#dfref-footnote-4). Implementation details for the main experiment to find the softest clipper can also be found in that study. 
+This repository contains experiments for [our study about clipping softness](https://lorenzofiestas.dev/articles/quantifying-clipping-softness/). Implementation details for the main experiment to find the softest clipper can also be found in that study. 
 
 ## Platform Support and Dependencies
 
