@@ -72,22 +72,22 @@ int main(void)
     #endif // TEST_LINEAR_GAIN
 
     float  blunter_mem[BASE + 1 + BASE];
-    float  arctan_mem[BASE + 1 + BASE];
+    float  arcsinh_mem[BASE + 1 + BASE];
     float  logistic_mem[BASE + 1 + BASE];
     float* blunter  = blunter_mem  + BASE;
-    float* arctan   = arctan_mem   + BASE;
+    float* arcsinh   = arcsinh_mem   + BASE;
     float* logistic = logistic_mem + BASE;
     for (int i = -BASE; i <= BASE; ++i) {
         double x = (float)i / BASE;
         blunter[i]  = 2.*x - fabs(x)*x;
-        arctan[i]   = atan(2.*x);
+        arcsinh[i]   = asinh(2.*x);
         logistic[i] = 2. / (1. + exp(-3.*x)) - 1.;
     }
     float blunter_input_gain   = normalized_input_gain(blunter);
-    float arctan_input_gain    = normalized_input_gain(arctan);
+    float arcsinh_input_gain    = normalized_input_gain(arcsinh);
     float logistic_input_gain  = normalized_input_gain(logistic);
     float blunter_output_gain  = normalized_output_gain(blunter, blunter_input_gain);
-    float arctan_output_gain   = normalized_output_gain(arctan, arctan_input_gain);
+    float arcsinh_output_gain   = normalized_output_gain(arcsinh, arcsinh_input_gain);
     float logistic_output_gain = normalized_output_gain(logistic, logistic_input_gain);
 
     #if MEASURE_REAL_HARDNESS
@@ -100,8 +100,8 @@ int main(void)
     for (int i = -BASE - IIR_TAIL_LENGTH+1; i < BASE + IIR_TAIL_LENGTH; ++i) {
         double x = blunter_input_gain*(double)i/BASE;
         B[i] = blunter_output_gain * (x > 1. ? 1. : x < -1. ? -1.f : 2.*x - fabs(x)*x);
-        x = arctan_input_gain*(double)i/BASE;
-        a[i] = arctan_output_gain*atan(2.*x);
+        x = arcsinh_input_gain*(double)i/BASE;
+        a[i] = arcsinh_output_gain*atan(2.*x);
         x = logistic_input_gain*(double)i/BASE;
         L[i] = logistic_output_gain * (2. / (1. + exp(-3.*x)) - 1);
     }
@@ -118,27 +118,27 @@ int main(void)
     #endif
 
     float  blunter_min_diff  = INFINITY;
-    float  arctan_min_diff   = INFINITY;
+    float  arcsinh_min_diff   = INFINITY;
     float  logistic_min_diff = INFINITY;
     float  blunter_diff_buf[1 + BASE]  = {0};
-    float  arctan_diff_buf[1 + BASE]   = {0};
+    float  arcsinh_diff_buf[1 + BASE]   = {0};
     float  logistic_diff_buf[1 + BASE] = {0};
     size_t blunter_index  = 0;
-    size_t arctan_index   = 0;
+    size_t arcsinh_index   = 0;
     size_t logistic_index = 0;
     int    blunter_gen[1 + BASE]  = {0};
-    int    arctan_gen[1 + BASE]   = {0};
+    int    arcsinh_gen[1 + BASE]   = {0};
     int    logistic_gen[1 + BASE] = {0};
     float  blunter_gen_filtered_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH]  = {0};
-    float  arctan_gen_filtered_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH]   = {0};
+    float  arcsinh_gen_filtered_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH]   = {0};
     float  logistic_gen_filtered_mem[IIR_TAIL_LENGTH + BASE + 1 + BASE + IIR_TAIL_LENGTH] = {0};
     float* blunter_gen_filtered  = blunter_gen_filtered_mem  + IIR_TAIL_LENGTH + BASE;
-    float* arctan_gen_filtered   = arctan_gen_filtered_mem   + IIR_TAIL_LENGTH + BASE;
+    float* arcsinh_gen_filtered   = arcsinh_gen_filtered_mem   + IIR_TAIL_LENGTH + BASE;
     float* logistic_gen_filtered = logistic_gen_filtered_mem + IIR_TAIL_LENGTH + BASE;
     float  blunter_gen_input_gain   = 0.f;
     float  blunter_gen_output_gain  = 0.f;
-    float  arctan_gen_input_gain    = 0.f;
-    float  arctan_gen_output_gain   = 0.f;
+    float  arcsinh_gen_input_gain    = 0.f;
+    float  arcsinh_gen_output_gain   = 0.f;
     float  logistic_gen_input_gain  = 0.f;
     float  logistic_gen_output_gain = 0.f;
 
@@ -178,17 +178,17 @@ int main(void)
         for (size_t i = 0; i < 1 + BASE; ++i) {
             float x = (float)i / (1 + BASE);
             diff += diff_buf[i] = fabsf(
-                arctan_output_gain*f_call(arctan, arctan_input_gain*x)
+                arcsinh_output_gain*f_call(arcsinh, arcsinh_input_gain*x)
                     - f_output_gain*f_call(f, f_input_gain*x));
         }
-        if (diff < arctan_min_diff) {
-            arctan_index = index;
-            arctan_min_diff = diff;
-            memcpy(arctan_diff_buf, diff_buf, sizeof diff_buf);
-            memcpy(arctan_gen_filtered_mem, f_mem, sizeof f_mem);
-            memcpy(arctan_gen, f_gen, sizeof f_gen);
-            arctan_gen_input_gain  = f_input_gain;
-            arctan_gen_output_gain = f_output_gain;
+        if (diff < arcsinh_min_diff) {
+            arcsinh_index = index;
+            arcsinh_min_diff = diff;
+            memcpy(arcsinh_diff_buf, diff_buf, sizeof diff_buf);
+            memcpy(arcsinh_gen_filtered_mem, f_mem, sizeof f_mem);
+            memcpy(arcsinh_gen, f_gen, sizeof f_gen);
+            arcsinh_gen_input_gain  = f_input_gain;
+            arcsinh_gen_output_gain = f_output_gain;
         }
 
         diff = 0.f;
@@ -210,21 +210,21 @@ int main(void)
     } while (++index, f_next(&f_gen_state, f_gen));
 
     float blunter_normalized[1 + BASE];
-    float arctan_normalized[1 + BASE];
+    float arcsinh_normalized[1 + BASE];
     float logistic_normalized[1 + BASE];
     for (size_t i = 0; i < 1 + BASE; ++i) {
         float x = (float)i / (1 + BASE);
         blunter_normalized[i] = blunter_gen_output_gain * f_call(
             blunter_gen_filtered, blunter_gen_input_gain*x);
-        arctan_normalized[i] = arctan_gen_output_gain * f_call(
-            arctan_gen_filtered, arctan_gen_input_gain*x);
+        arcsinh_normalized[i] = arcsinh_gen_output_gain * f_call(
+            arcsinh_gen_filtered, arcsinh_gen_input_gain*x);
         logistic_normalized[i] = logistic_gen_output_gain * f_call(
             logistic_gen_filtered, logistic_gen_input_gain*x);
     }
 
     const float plot_scale  = 1.f;
     float blunter_diff_sum  = 0.f;
-    float arctan_diff_sum   = 0.f;
+    float arcsinh_diff_sum   = 0.f;
     float logistic_diff_sum = 0.f;
     size_t start = 0;
     printf("%i, %f\n", -1, plot_scale);
@@ -233,8 +233,8 @@ int main(void)
         printf("%zu, %f\n", i, blunter_diff_buf[i]);
     }
     for (size_t i = start; i < 1 + BASE; ++i) {
-        arctan_diff_sum += arctan_diff_buf[i];
-        printf("%zu, %f\n", i, arctan_diff_buf[i]);
+        arcsinh_diff_sum += arcsinh_diff_buf[i];
+        printf("%zu, %f\n", i, arcsinh_diff_buf[i]);
     }
     for (size_t i = start; i < 1 + BASE; ++i) {
         logistic_diff_sum += logistic_diff_buf[i];
@@ -242,68 +242,68 @@ int main(void)
     }
     #if 0 // sum of differences
     printf("%i, %f\n", 1 + BASE, blunter_diff_sum);
-    printf("%i, %f\n", 1 + BASE, arctan_diff_sum);
+    printf("%i, %f\n", 1 + BASE, arcsinh_diff_sum);
     printf("%i, %f\n", 1 + BASE, logistic_diff_sum);
     printf("%i, %f\n", 1 + BASE+1,
-           (blunter_diff_sum + arctan_diff_sum + logistic_diff_sum)/3);
+           (blunter_diff_sum + arcsinh_diff_sum + logistic_diff_sum)/3);
     #endif
-    #if 0 // mean of differences
-    printf("%i, %f\n", 1 + BASE+2, ((blunter_diff_sum + arctan_diff_sum + logistic_diff_sum)/3)/BASE);
+    #if 1 // mean of differences
+    printf("%i, %f\n", 1 + BASE+2, ((blunter_diff_sum + arcsinh_diff_sum + logistic_diff_sum)/3)/BASE);
     #endif
 
     // Values for debugging.
     (void)blunter_index;
-    (void)arctan_index;
+    (void)arcsinh_index;
     (void)logistic_index;
     (void)blunter_normalized;
-    (void)arctan_normalized;
+    (void)arcsinh_normalized;
     (void)logistic_normalized;
 
     float* blunter_derivative = oversampled_derivative(
         (float[(IIR_TAIL_LENGTH + 1 + BASE + IIR_TAIL_LENGTH) << OVERSAMPLE_POWER]){0},
         blunter_gen_filtered);
-    float* arctan_derivative = oversampled_derivative(
+    float* arcsinh_derivative = oversampled_derivative(
         (float[(IIR_TAIL_LENGTH + 1 + BASE) << OVERSAMPLE_POWER]){0},
-        arctan_gen_filtered);
+        arcsinh_gen_filtered);
     float* logistic_derivative = oversampled_derivative(
         (float[(IIR_TAIL_LENGTH + 1 + BASE) << OVERSAMPLE_POWER]){0},
         logistic_gen_filtered);
 
     float blunter_hardness = f_hardness(
         blunter_gen_filtered, blunter_gen_output_gain, blunter_gen_input_gain);
-    float arctan_hardness = f_hardness(
-        arctan_gen_filtered, arctan_gen_output_gain, arctan_gen_input_gain);
+    float arcsinh_hardness = f_hardness(
+        arcsinh_gen_filtered, arcsinh_gen_output_gain, arcsinh_gen_input_gain);
     float logistic_hardness = f_hardness(
         logistic_gen_filtered, logistic_gen_output_gain, logistic_gen_input_gain);
 
     #if 0 // print hardness ratios
-    fprintf(stderr, "Ha / HB = %g\n", arctan_hardness / blunter_hardness);
+    fprintf(stderr, "Ha / HB = %g\n", arcsinh_hardness / blunter_hardness);
     fprintf(stderr, "Hl / HB = %g\n", logistic_hardness / blunter_hardness);
 
     float blunter_os_hardness  = 0.f;
-    float arctan_os_hardness   = 0.f;
+    float arcsinh_os_hardness   = 0.f;
     float logistic_os_hardness = 0.f;
     for (size_t i = 0; i < (1 + BASE) << OVERSAMPLE_POWER; ++i) {
         blunter_os_hardness = fminf(
             blunter_os_hardness, blunter_derivative[i] - blunter_derivative[i-1]);
-        arctan_os_hardness = fminf(
-            arctan_os_hardness, arctan_derivative[i] - arctan_derivative[i-1]);
+        arcsinh_os_hardness = fminf(
+            arcsinh_os_hardness, arcsinh_derivative[i] - arcsinh_derivative[i-1]);
         logistic_os_hardness = fminf(
             logistic_os_hardness, logistic_derivative[i] - logistic_derivative[i-1]);
     }
     blunter_os_hardness *= -blunter_gen_output_gain*blunter_gen_input_gain*blunter_gen_input_gain;
-    arctan_os_hardness *= -arctan_gen_output_gain*arctan_gen_input_gain*arctan_gen_input_gain;
+    arcsinh_os_hardness *= -arcsinh_gen_output_gain*arcsinh_gen_input_gain*arcsinh_gen_input_gain;
     logistic_os_hardness *= -logistic_gen_output_gain*logistic_gen_input_gain*logistic_gen_input_gain;
 
     fprintf(stderr, "Oversampled:\n");
-    fprintf(stderr, "Ha / HB = %g\n", arctan_os_hardness / blunter_os_hardness);
+    fprintf(stderr, "Ha / HB = %g\n", arcsinh_os_hardness / blunter_os_hardness);
     fprintf(stderr, "Hl / HB = %g\n", logistic_os_hardness / blunter_os_hardness);
     #endif
 
     (void)blunter_derivative;
-    (void)arctan_derivative;
+    (void)arcsinh_derivative;
     (void)logistic_derivative;
     (void)blunter_hardness;
-    (void)arctan_hardness;
+    (void)arcsinh_hardness;
     (void)logistic_hardness;
 }
